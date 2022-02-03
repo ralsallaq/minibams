@@ -1,0 +1,10 @@
+.nextflow.log*
+myconfig
+nextflow
+*_s?*
+analysis
+work
+locii_input_file.tsv
+run_pipeline.log
+run_pipeline.sh
+.nextflow
