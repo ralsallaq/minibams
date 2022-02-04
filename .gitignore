@@ -8,3 +8,7 @@ locii_input_file.tsv
 run_pipeline.log
 run_pipeline.sh
 .nextflow
+run_addloci.log
+run_addloci.sh 
+work_addLoci 
+analysis_addLoci_2022_02_03

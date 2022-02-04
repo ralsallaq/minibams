@@ -34,6 +34,9 @@ params.locus_band_del = 10 //wiggle room before and after a del
 
 params.locus_band_sv = 500
 
+#### random seed to generate a random subject id
+params.random_seed = 900
+
 
 //workflows
 //include { get_homog_manifests } from './modules/get_homog_manifests' params(genome:params.genome, lookupDircs:params.lookupDircs, outD:params.outD, locus_band_indel:params.locus_band_indel,  locus_band_indel_sv:params.locus_band_indel_sv, locus_band_sv:params.locus_band_sv) 
@@ -77,13 +80,13 @@ include { generateSubBams as generateSubBams_WES_gl } from './modules/get_miniba
 
 
 // merge subbams to minibams
-include { mergeToMinibams as mergeToMinibams_RNA_tumor } from './modules/get_minibams' params(genome:params.genome, outD:params.outD)
+include { mergeToMinibams as mergeToMinibams_RNA_tumor } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD)
 
-include { mergeToMinibams as mergeToMinibams_WGS_tumor } from './modules/get_minibams' params(genome:params.genome, outD:params.outD)
-include { mergeToMinibams as mergeToMinibams_WGS_gl } from './modules/get_minibams' params(genome:params.genome, outD:params.outD)
+include { mergeToMinibams as mergeToMinibams_WGS_tumor } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD)
+include { mergeToMinibams as mergeToMinibams_WGS_gl } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD)
 
-include { mergeToMinibams as mergeToMinibams_WES_tumor } from './modules/get_minibams' params(genome:params.genome, outD:params.outD)
-include { mergeToMinibams as mergeToMinibams_WES_gl } from './modules/get_minibams' params(genome:params.genome, outD:params.outD)
+include { mergeToMinibams as mergeToMinibams_WES_tumor } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD)
+include { mergeToMinibams as mergeToMinibams_WES_gl } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD)
 
 workflow {
     main:

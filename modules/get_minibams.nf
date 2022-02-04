@@ -4,6 +4,7 @@ params.locus_band_indel = null
 params.locus_band_indel_sv = null
 params.locus_band_sv = null
 params.locus_band_del = null
+params.random_seed = 900
 
 
 process get_clean_manifest {
@@ -477,6 +478,7 @@ print('Done')
 }
 
 
+
 process generateSubBams {
     tag "small bams from $analysisType $sampleType"
     //container "stjudecloud/samtools:branch-chipseq-1.0.2"
@@ -500,7 +502,6 @@ process generateSubBams {
     """
 
     module load samtools/1.12
-    module load parallel/20201222
     
     function getSmallBam() {
 
@@ -554,20 +555,19 @@ process mergeToMinibams {
     #!/usr/bin/bash
     module load python/3.7.0
     module load samtools/1.12
-    module load parallel/20201222
 
     mkdir -p ${analysisType}_${params.genome}
 
     find *.bam > bamlistfile 
 
     echo "merge small bams into a minibam"
-    samtools merge -@ 8 -r -c -p -f --output-fmt BAM -b bamlistfile ${analysisType}_${sampleType}_${params.genome}.notsorted.rawH.bam
+    samtools merge -@ "$task.cpus" -r -c -p -f --output-fmt BAM -b bamlistfile ${analysisType}_${sampleType}_${params.genome}.notsorted.rawH.bam
 
 
     echo "changing SM in the header to be unique single for a single minibam file"
 
     #### this produces the same number 92966; change the seed to get a different number
-    random6Digit=\$(echo 9\$(python -c "import numpy as np; np.random.seed (900); print(np.random.randint(90000,100000,1)[0])"))
+    random6Digit=\$(echo 9\$(python -c "import numpy as np; np.random.seed ('${params.random_seed}'); print(np.random.randint(90000,99999,1)[0])"))
    
     if [ "${sampleType}" == "tumor" ]; then
 
