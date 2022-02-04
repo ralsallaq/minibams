@@ -34,7 +34,7 @@ params.locus_band_del = 10 //wiggle room before and after a del
 
 params.locus_band_sv = 500
 
-#### random seed to generate a random subject id
+// random seed to generate a random subject id
 params.random_seed = 900
 
 
