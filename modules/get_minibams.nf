@@ -567,7 +567,7 @@ process mergeToMinibams {
     echo "changing SM in the header to be unique single for a single minibam file"
 
     #### this produces the same number 92966; change the seed to get a different number
-    random6Digit=\$(echo 9\$(python -c "import numpy as np; np.random.seed ('${params.random_seed}'); print(np.random.randint(90000,99999,1)[0])"))
+    random6Digit=\$(echo 9\$(python -c "import numpy as np; np.random.seed (int('${params.random_seed}')); print(np.random.randint(90000,99999,1)[0])"))
    
     if [ "${sampleType}" == "tumor" ]; then
 
