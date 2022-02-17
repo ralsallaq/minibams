@@ -4,12 +4,17 @@
 nextflow.enable.dsl = 2
 
 params.outD = "analysis/"
-params.bams_base = "/research_jude/rgs01_jude/resgen/dev/tartan/index/data/"
 params.abnormal_eventsFile = "${workflow.projectDir}/locii_input_file.tsv"
-params.lookupDircs = ['/clinical/cgs01/clingen/prod/tartan/index/data/ClinicalPilot/ClinicalPilot/','/clinical/cgs01/clingen/prod/tartan/index/data/Clinical/2021']
+params.lookupDircs = '/clinical/cgs01/clingen/prod/tartan/index/data/ClinicalPilot/ClinicalPilot/,/clinical/cgs01/clingen/prod/tartan/index/data/Clinical/2021'
+lookupDircs_list = params.lookupDircs?.tokenize(',') - null
 params.genome = 'hg19'
+//by default this is false; use --get_clean_manifest to set true
 params.get_clean_manifest = false
 params.clean_manifest_file = "analysis/manifest_all_wRegions.tsv"
+// by default this is false use --recover to set true
+params.recover = false 
+params.validate_manifest = false
+
 
 if (! params.get_clean_manifest) {
     if (params.clean_manifest_file == null) {
@@ -19,9 +24,12 @@ if (! params.get_clean_manifest) {
  } else if (params.abnormal_eventsFile == null) {
      log.error("if params.get_clean_manifest is true, params.abnormal_eventsFile is expected to be a path to file with events to be collected from tartan")
      exit 1
-} else {
-     log.error("unrecognized value for params.get_clean_manifest")
-     exit 1
+}
+
+
+if (params.recover & ! params.get_clean_manifest & params.validate_manifest) {
+    log.error("for --recover option --get_clean_manifest is required but --validate_manifest is not allowed")
+    exit 1
 }
 
 
@@ -39,12 +47,12 @@ params.random_seed = 900
 
 
 //workflows
-//include { get_homog_manifests } from './modules/get_homog_manifests' params(genome:params.genome, lookupDircs:params.lookupDircs, outD:params.outD, locus_band_indel:params.locus_band_indel,  locus_band_indel_sv:params.locus_band_indel_sv, locus_band_sv:params.locus_band_sv) 
+//include { get_homog_manifests } from './modules/get_homog_manifests' params(genome:params.genome, lookupDircs:lookupDircs_list, outD:params.outD, locus_band_indel:params.locus_band_indel,  locus_band_indel_sv:params.locus_band_indel_sv, locus_band_sv:params.locus_band_sv) 
 
 // generate ground-truth manifests
 
-include { get_cytoband_loci as get_cytoband_loci1 } from './modules/get_cytoband_loci' params(genome:params.genome, lookupDircs:params.lookupDircs[0])
-include { get_cytoband_loci as get_cytoband_loci2 } from './modules/get_cytoband_loci' params(genome:params.genome, lookupDircs:params.lookupDircs[1])
+include { get_cytoband_loci as get_cytoband_loci1 } from './modules/get_cytoband_loci' params(genome:params.genome, lookupDircs:lookupDircs_list[0])
+include { get_cytoband_loci as get_cytoband_loci2 } from './modules/get_cytoband_loci' params(genome:params.genome, lookupDircs:lookupDircs_list[1])
 
 include { get_clean_manifest as get_clean_manifest } from './modules/get_minibams' params(genome:params.genome, locus_band_indel:params.locus_band_indel,  locus_band_indel_sv:params.locus_band_indel_sv, locus_band_sv:params.locus_band_sv, locus_band_del:params.locus_band_del, outD:params.outD)
 
@@ -108,7 +116,9 @@ workflow {
         get_clean_manifest(events_capture_ch)
 
         // validate the manifest
-        validate_manifest(get_clean_manifest.out)
+        if (params.validate_manifest) {
+            validate_manifest(get_clean_manifest.out)
+        }
 
         // get ground truth manifests by analysis-type and sample type
         get_GT_manifest_RNA_tumor(get_clean_manifest.out, channel.value('TRANSCRIPTOME'), channel.value('tumor'))
@@ -124,7 +134,9 @@ workflow {
         get_clean_manifest_ch =  channel.fromPath(params.clean_manifest_file) //.splitCsv(header: true, sep: "\t", strip: true)
 
         // validate the manifest
-        //validate_manifest(get_clean_manifest_ch)
+        if (params.validate_manifest) {
+            validate_manifest(get_clean_manifest.out)
+        }
 
         // get ground truth manifests by analysis-type and sample type
     
@@ -139,34 +151,36 @@ workflow {
     }
 
 
+    if (! params.recover) {
 
-    // generate bed files for regions to be extracted in a next step 
-    generateBEDFiles_RNA_tumor(get_GT_manifest_RNA_tumor.out, channel.value('TRANSCRIPTOME'), channel.value('tumor'))
+        // generate bed files for regions to be extracted in a next step 
+        generateBEDFiles_RNA_tumor(get_GT_manifest_RNA_tumor.out, channel.value('TRANSCRIPTOME'), channel.value('tumor'))
+        
+        generateBEDFiles_WGS_tumor(get_GT_manifest_WGS_tumor.out, channel.value('WHOLE_GENOME'), channel.value('tumor'))
+        generateBEDFiles_WGS_gl(get_GT_manifest_WGS_gl.out, channel.value('WHOLE_GENOME'), channel.value('germline'))
     
-    generateBEDFiles_WGS_tumor(get_GT_manifest_WGS_tumor.out, channel.value('WHOLE_GENOME'), channel.value('tumor'))
-    generateBEDFiles_WGS_gl(get_GT_manifest_WGS_gl.out, channel.value('WHOLE_GENOME'), channel.value('germline'))
-
-    generateBEDFiles_WES_tumor(get_GT_manifest_WES_tumor.out, channel.value('EXOME'), channel.value('tumor'))
-    generateBEDFiles_WES_gl(get_GT_manifest_WES_gl.out, channel.value('EXOME'), channel.value('germline'))
-
-   
-    // generate subBams for merging one subBam for each bed file passed
-    generateSubBams_RNA_tumor(generateBEDFiles_RNA_tumor.out.flatten(), channel.value('TRANSCRIPTOME'), channel.value('tumor'))
+        generateBEDFiles_WES_tumor(get_GT_manifest_WES_tumor.out, channel.value('EXOME'), channel.value('tumor'))
+        generateBEDFiles_WES_gl(get_GT_manifest_WES_gl.out, channel.value('EXOME'), channel.value('germline'))
     
-    generateSubBams_WGS_tumor(generateBEDFiles_WGS_tumor.out.flatten(), channel.value('WHOLE_GENOME'), channel.value('tumor'))
-    generateSubBams_WGS_gl(generateBEDFiles_WGS_gl.out.flatten(), channel.value('WHOLE_GENOME'), channel.value('germline'))
-
-    generateSubBams_WES_tumor(generateBEDFiles_WES_tumor.out.flatten(), channel.value('EXOME'), channel.value('tumor'))
-    generateSubBams_WES_gl(generateBEDFiles_WES_gl.out.flatten(), channel.value('EXOME'), channel.value('germline'))
-
-
-    // collect all subBams and merge to minibams 
-    mergeToMinibams_RNA_tumor(generateSubBams_RNA_tumor.out.collect(), channel.value('TRANSCRIPTOME'), channel.value('tumor'))
+       
+        // generate subBams for merging one subBam for each bed file passed
+        generateSubBams_RNA_tumor(generateBEDFiles_RNA_tumor.out.flatten(), channel.value('TRANSCRIPTOME'), channel.value('tumor'))
+        
+        generateSubBams_WGS_tumor(generateBEDFiles_WGS_tumor.out.flatten(), channel.value('WHOLE_GENOME'), channel.value('tumor'))
+        generateSubBams_WGS_gl(generateBEDFiles_WGS_gl.out.flatten(), channel.value('WHOLE_GENOME'), channel.value('germline'))
     
-    mergeToMinibams_WGS_tumor(generateSubBams_WGS_tumor.out.collect(), channel.value('WHOLE_GENOME'), channel.value('tumor'))
-    mergeToMinibams_WGS_gl(generateSubBams_WGS_gl.out.collect(), channel.value('WHOLE_GENOME'), channel.value('germline'))
-
-    mergeToMinibams_WES_tumor(generateSubBams_WES_tumor.out.collect(), channel.value('EXOME'), channel.value('tumor'))
-    mergeToMinibams_WES_gl(generateSubBams_WES_gl.out.collect(), channel.value('EXOME'), channel.value('germline'))
+        generateSubBams_WES_tumor(generateBEDFiles_WES_tumor.out.flatten(), channel.value('EXOME'), channel.value('tumor'))
+        generateSubBams_WES_gl(generateBEDFiles_WES_gl.out.flatten(), channel.value('EXOME'), channel.value('germline'))
+    
+    
+        // collect all subBams and merge to minibams 
+        mergeToMinibams_RNA_tumor(generateSubBams_RNA_tumor.out.collect(), channel.value('TRANSCRIPTOME'), channel.value('tumor'))
+        
+        mergeToMinibams_WGS_tumor(generateSubBams_WGS_tumor.out.collect(), channel.value('WHOLE_GENOME'), channel.value('tumor'))
+        mergeToMinibams_WGS_gl(generateSubBams_WGS_gl.out.collect(), channel.value('WHOLE_GENOME'), channel.value('germline'))
+    
+        mergeToMinibams_WES_tumor(generateSubBams_WES_tumor.out.collect(), channel.value('EXOME'), channel.value('tumor'))
+        mergeToMinibams_WES_gl(generateSubBams_WES_gl.out.collect(), channel.value('EXOME'), channel.value('germline'))
+        }
 
 }

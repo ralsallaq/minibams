@@ -155,17 +155,12 @@ process get_cytoband_loci {
                 touch list_of_bamPaths.info
             else
                  #### subset for uniq and available bams
-                 cat list_of_bamPaths.info_unflitered | sort | uniq > list_of_bamPaths.info_unflitered_uniq
-                 unset nlines
-                 nlines=\$(cat list_of_bamPaths.info_unflitered_uniq|wc -l)
-                 ### check bam one by one and collect those exit as well as those do not exist
-                 for ((i=1;i<=\$nlines;i++)); do 
-                     line=\$(cat list_of_bamPaths.info_unflitered_uniq|head -\$i|tail -1)
-                     bdir=\$(cat list_of_bamPaths.info_unflitered_uniq|head -\$i|tail -1|awk '{print \$3}')
-                     if [ -f \$bdir/*.bam ]; then 
-                         echo \$line >> list_of_bamPaths.info
+                 cat list_of_bamPaths.info_unflitered | sort | uniq |while read target sample bdir
+                 do 
+                     if [ -f "\$bdir/\$sample.bam" ]; then 
+                         echo -e "\$target \\t \$sample \\t \$bdir" >> list_of_bamPaths.info
                      else
-                         echo \$line >> list_of_missing_bamPaths.info
+                         echo \$bdir >> list_of_missing_bamPaths.info
                      fi
                  done
             fi

@@ -15,34 +15,35 @@ def main():
     dfn = pd.read_csv(events_locii_rawF, sep='\t', header=None)
     
     ##### fix the raw manifest
-    print('here the assumption is that the manifest has 18 columns')  
-    assert(dfn.columns.shape[0] == 18),'unexpected number of columns in manifest; expecting 18 columns'
-    no_bams_idx = dfn[17].isnull()
+    print('here the assumption is that the manifest has 20 columns')  
+    print(dfn.head())
+    assert(dfn.columns.shape[0] == 20),'unexpected number of columns in manifest; expected 20 got {} columns'.format(dfn.columns.shape[0])
+
+#    def removeWhiteSpace(row):
+#        for i, v in row.iteritems():
+#            row.loc[i] = v.strip()
+#        return row
+
+    def removeWhiteSpace(row):
+        for i, v in row.iteritems():
+            row.loc[i] = v.strip() if isinstance(v, str) else v
+        return row
+    
+    dfn.loc[:,[1,2,3,4,5,17,18,19]] = dfn[[1,2,3,4,5,17,18,19]].apply(lambda r: removeWhiteSpace(r))
+
+
+    no_bams_idx = dfn[19].isnull()
     
     print('there are {} entries with no bams those might have the bams in column 15'.format(no_bams_idx.sum()))
     
     if no_bams_idx.sum() >0 :
         assert(dfn.loc[no_bams_idx,15].str.contains('.bam').sum() == no_bams_idx.sum()),'not all missing bams have bams in column 15, check if the bams are in another column'
-        dfn.loc[no_bams_idx,17] = dfn.loc[no_bams_idx,15]
+        dfn.loc[no_bams_idx,19] = dfn.loc[no_bams_idx,15]
     
     print('after this step any null bams would make problems')
     
-    def removeWhiteSpace(row):
-        for i, v in row.iteritems():
-            row.loc[i] = v.strip()
-        return row
     
-    dfn.loc[:,[1,2,3,4,5]] = dfn[[1,2,3,4,5]].apply(lambda r: removeWhiteSpace(r))
-    
-    ####splitting the manifest columns into sets to format column of index 17 (column 18)  into three columns
-    dfn1 = dfn.iloc[:,0:17]
-    
-    dfn2 = dfn[17].apply(lambda r: pd.Series(r.strip().split(' '))) #these are analysis type/sample name/bam path
-    assert(dfn2.shape[0]==dfn.shape[0]),'splitting the columns was not successful'
-    
-    dfn2.columns = [17,18,19]
-    dfn = pd.concat([dfn1,dfn2], axis=1)
-    
+    print(dfn[17].isin(['WHOLE_GENOME', 'TRANSCRIPTOME', 'EXOME']).sum())
     assert(dfn[17].isin(['WHOLE_GENOME', 'TRANSCRIPTOME', 'EXOME']).sum() == dfn.shape[0]),'unknown analysis types or manifest is not in expected format'
     
     #### the assumption here is that _D* _A* _M* and _E* are tumor type and the rest are germline
