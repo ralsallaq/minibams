@@ -112,7 +112,7 @@ def getRegion(row):
         return [[chrA, posA-locus_band_sv, posA+locus_band_sv ] , \
                 [chrB, posB-locus_band_sv, posB+locus_band_sv ] ]
 
-    elif row[4]=='Somatic SV' and row[16] == 'DEL': 
+    elif row[4]=='Somatic SV' and not pd.isna(row[16]) and row[16] == 'DEL': 
         try:
             chrA = setChromosomeName(row[8])
             posA = int(row[9]) 
@@ -163,13 +163,15 @@ def getRegion(row):
         return [[chrA, posA-locus_band_del, posB+locus_band_del]]
 
 ##### fix the raw manifest such that we get the event and the coordinates in the same place regardless to event
-dfn = pd.read_csv('manifest.tsv', sep='\t', header=None)
-print('here the assumption is that the manifest has 21 columns')  
+dfn = pd.read_csv('manifest.tsv', sep='\\t', header=None)
+
+print(dfn[dfn[4]=='Somatic CNA'])
+print('here the assumption is that the manifest has 21 columns', file=sys.stderr)  
 assert(dfn.columns.shape[0] == 21),'unexpected number of columns in manifest'
 
 assert(dfn.loc[:,19].str.contains('.bam').sum() == dfn.shape[0]),'some entries in the manifest do not have bams in column 19'
 
-print('after this step any null bams would make problems')
+print('after this step any null bams would make problems', file=sys.stderr)
 
 assert(dfn[17].isin(['WHOLE_GENOME', 'TRANSCRIPTOME', 'EXOME']).sum() == dfn.shape[0]),'unknown analysis types or manifest is not in expected format'
 
@@ -183,7 +185,7 @@ dfn.index = range(dfn.shape[0])
 
 n_events = dfn.shape[0]
 
-print('number of events after naive deduplication = ',n_events)
+print('number of events after naive deduplication = ',n_events, file=sys.stderr)
 
 ##### now we fix the manifest to a standard shape: baseSampleName, gene, cytolocus, type, chrA, posA, chrB, posB, target, sampleName, bam, sampleType
 manifest_wregions = pd.DataFrame()
@@ -193,7 +195,7 @@ for i,row in dfn.iterrows():
     short_row = row.loc[[1,2,3,4,17,18,19,20]]
     assert(sum([len(kk) for kk in regions])>0),'missing regions for event {}'.format(row)
 
-    print(short_row,short_row.values,row[[4,7,8,9,10,11,12,13,16]])
+    print(short_row,short_row.values,row[[4,7,8,9,10,11,12,13,16]], file=sys.stderr)
     for cc in range(short_row.shape[0]):
         manifest_wregions.loc[i,cc] = short_row.values[cc] 
 
@@ -217,7 +219,7 @@ for i,row in dfn.iterrows():
 
     else:
        
-        print('unknown output for regions')
+        print('unknown output for regions', file=sys.stderr)
         sys.exit(1)
 
 
@@ -226,13 +228,13 @@ assert(manifest_wregions.shape[0]==n_events),'not all events have regions, some 
 manifest_wregions.columns = ['basename','gene','cytolocus','type','target','sample','bamPath','sampleType','chrA','posA1','posA2','chrB','posB1','posB2']
 manifest_wregions.loc[:,'genome'] = '${params.genome}'
 
-print(manifest_wregions.shape)
-print(manifest_wregions.head())
-print(manifest_wregions.columns)
+print(manifest_wregions.shape, file=sys.stderr)
+print(manifest_wregions.head(), file=sys.stderr)
+print(manifest_wregions.columns, file=sys.stderr)
 
 #### Now after getting all in one row, we do the real deduplication
 manifest_wregions = manifest_wregions.drop_duplicates()
-print('size of manifest after real deduplication = ',manifest_wregions.shape[0])
+print('size of manifest after real deduplication = ',manifest_wregions.shape[0], file=sys.stderr)
 
 
 manifest_wregions = manifest_wregions.convert_dtypes()
@@ -305,7 +307,7 @@ else:
 
 #Now we do the coverage validation:
 
-hg19_chr=list(map(str,list(range(1,23))))
+hg19_chr=list(map(str,list(range(1,23)))) + ['MT','Y','X']
 hg38_chr = ['chr'+i for i in hg19_chr]
 
 missing_chr = []

@@ -106,14 +106,25 @@ process get_cytoband_loci {
             fusion=\$(echo ${gene}|tr "-" "_")
             echo "fusion is \$fusion"
 
-            #grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}" | sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'\$fusion'" {}/*_predicted_sv.txt >> sample_records/"'\$outputFile'" '
-            #### this will look for the fusion in many places: cicero-itd-post, crest-post,
+            #### this will look for the fusion in many places: cicero-itd-post, crest-post, is Somatic SV is in the name of the file
             grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}" | sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'\$fusion'" {}/*.txt >> sample_records/"'\$outputFile'" '
+
+            if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
+            
+                echo "could not find records with somatic SV in their name; will look into crest-post"
+                cat \$recFile | grep -w 'crest-post'| parallel ' grep -iwE "'\$fusion'" {}/*-event_fusion.txt  >> sample_records/"'\$outputFile'" '  
+            fi
 
 
         elif [ "${type}" == "Somatic SV" ] && [ "${cytoLocus}" == "Deletion or Disruption" ]; then
 
-            grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}"|sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*.txt | grep -iE "Del" >> sample_records/"'\$outputFile'" '
+            grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}"|sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*.txt | grep -iE "DEL" >> sample_records/"'\$outputFile'" '
+
+            if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
+
+                echo "could not find records with somatic SV in their name; will look into all text files"
+                cat \$recFile | grep -w 'crest-post'| parallel ' grep -iwE "'${gene}'" {}/*-event_fusion.txt | grep -iE "DEL"  >> sample_records/"'\$outputFile'" '  
+            fi
 
 
         elif [ "${type}" == "Somatic SNV" ]; then
@@ -166,40 +177,23 @@ process get_cytoband_loci {
             fi
     }
  
+
     function prepManifest() {
-        rm -f events_locii.tsv
-        event=\$(cat events_capture.info)
-        eventFile=\$(cat events_capture.info|cut -f 6|cut -f 2 -d " ")
-        nDuplicates=\$(cat events_capture.info|cut -f 7)
-        echo -e \$eventFile \t \$nDuplicates
-        if [[ "\$nDuplicates" -gt 0 ]]; then
-            echo "there records for this event"
-            echo -e "\$eventFile\t\$nDuplicates"
-            nbams=\$(cat list_of_bamPaths.info|wc -l)
-            ### make each collected event available for each target
-            for ((i=1;i<="\$nDuplicates";i++));do
-                echo -e "\$event\t\$(cat "sample_records/\$eventFile"|sed 's/.*txt://g' |cut -f1-10|sort|uniq|head -\$i|tail -1)"  > events_locii.tsv_temp
-                if [ \$nbams -lt 10 ] || [ \$nbams != "" ]; then
-                    paste -d"\\t" <(cat \$(yes events_locii.tsv_temp|head -\$nbams)) <(cat list_of_bamPaths.info) >> events_locii.tsv
-                else
-                    echo "something is wrong with number of bams \$nbams"
-                fi
-            done
-        ### drop duplicated events
-        cat events_locii.tsv|sort|uniq > temp_file
-        mv temp_file events_locii.tsv
-        else
-            echo "no records for the event found ... creating empty file"
-            touch events_locii.tsv
-        fi
-    
-
-        }
-
-    function fix_multiplicity() {
 
         module load python/3.7.0
-        python ${workflow.projectDir}/bin/fix_multiplicity.py -i events_locii.tsv -o events_locii_fixed.tsv
+        eventsFileFound=false
+        while [[ "\$eventsFileFound" == "false" ]]
+            do
+                
+                if [ -f events_capture.info ]; then
+                    eventsFileFound=true
+                    echo "python ${workflow.projectDir}/bin/prepManifest.py -i events_capture.info -b list_of_bamPaths.info -o events_locii_fixed.tsv"
+                    python ${workflow.projectDir}/bin/prepManifest.py -i events_capture.info -b list_of_bamPaths.info -o events_locii_fixed.tsv
+                else
+                    >&2 echo "events_capture.info is not done yet or does not exist"
+                    sleep 1
+                fi
+            done
 
         }
 
@@ -210,20 +204,19 @@ process get_cytoband_loci {
     echo "done getting \$eventsFound events"
     getAvailableBams
     echo "done getting available bams"
-    prepManifest
-    echo "done preparing raw manifest encompassing available bams"
-    echo "assuring that the number of lines in the manifest is either 0 or multiples of 5"
 
-    if [[ "\$(cat events_locii.tsv|wc -l)" -gt 0 ]]; then
+    if [[ "\$(cat events_capture.info|cut -f 7| sed 's/^[[:space:]]*//g')" == "0" ]]; then
 
-        echo 'fixing multiplicity'
-        fix_multiplicity
-
-    else
         echo 'no need to fix anything empty events'
         touch events_locii_fixed.tsv
+
+    else
+        prepManifest
+
     fi
 
+    echo "done preparing raw manifest encompassing available bams"
+    echo "assuring that the number of lines in the manifest is either 0 or multiples of 5"
 
 
     echo "Done"

@@ -31,4 +31,19 @@ t.py
 test.nf
 test/
 work_recover/
+README
+analysis_addLoci_2022_04_03/
+bedFile_regionsToAdd.bed
+compareInOut.sh
+indata
+locii_input_file.tsv_recover
+onlyIN_indata
+onlyIN_outdata
+outdata
+regions_toADD
+run_addloci.sh
+t
+validate.py
+work_addLoci/
+work_addLoci_04_03/
 
