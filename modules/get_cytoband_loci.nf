@@ -29,8 +29,8 @@ process get_cytoband_loci {
        exit 1
     fi
 
-    echo -e "official genome is \$official_genome"
-    echo -e "lookupDir is ${params.lookupDircs}"
+    echo -e "official genome is \$official_genome" 
+    echo -e "lookupDir is ${params.lookupDircs}" 
 
     function getRecordsForSamples() {
         #ingore errors of not finding something
@@ -40,11 +40,11 @@ process get_cytoband_loci {
 
         mkdir -p sample_records
 
-        echo getting records for ${sample}
+        echo getting records for ${sample} 
 
         recs=\$(find "${params.lookupDircs}"/"${sample}"*) || recs="" 
 
-        echo \$recs|tr " " "\\n" >> sample_records/"${sample}".records
+        echo \$recs|tr " " "\\n" >> sample_records/"${sample}".records 
 
         unset recordsFound
         recordsFound=\$(cat sample_records/"${sample}".records|wc -l) 
@@ -57,7 +57,7 @@ process get_cytoband_loci {
         rm -f events_capture.info
     
         recFile="sample_records/${sample}.records"
-        echo ${type}
+        echo ${type} 
 
         outputFile=\$(echo "${sample}_${gene}_${cytoLocus}_${type}.records"|tr "[,\\ \\/\\>]" "_")
         rm -f sample_records/"\$outputFile"
@@ -77,7 +77,7 @@ process get_cytoband_loci {
 
             if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
                 
-                echo "could not find any in conserting_crest-post will look into crest-post"
+                echo "could not find any in conserting_crest-post will look into crest-post" 
                 cat \$recFile | grep -w 'crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "DEL" >> sample_records/"'\$outputFile'" '  
                 ### this seems to cover amplifications
                 cat \$recFile | grep -w 'crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "ITX" >> sample_records/"'\$outputFile'" '  
@@ -151,17 +151,16 @@ process get_cytoband_loci {
         echo "getting bam paths regardless to if bams exist or not under these paths"
         cat \$recFile | grep "\\/bam" | grep -E "WHOLE_GENOME|EXOME|TRANSCRIPTOME" | parallel 'echo -e \$(basename {//}) "'\t'" \$(basename \$(dirname {//})) "'\t'" {}' >   list_of_bamPaths.info_unflitered
         echo "collecting info on \$outputFile"
-        echo -e "${params.lookupDircs}\t"  "${sample}\t" "${gene}\t" "${cytoLocus}\t" "${type}\t" "\$outputFile\t" "\$(cat sample_records/\$outputFile|wc -l)" > events_capture.info
+        echo -e "${params.lookupDircs}\t"  "${sample}\\t" "${gene}\\t" "${cytoLocus}\\t" "${type}\\t" "\$outputFile\\t" "\$(cat sample_records/\$outputFile|wc -l)" > events_capture.info
 
 
         }
 
 
     function getAvailableBams() {
-            nbams=\$(cat list_of_bamPaths.info_unflitered|wc -l)
             rm -f list_of_bamPaths.info
             rm -f list_of_missing_bamPaths.info
-            if [[ \$nbams -eq 0 ]]; then
+            if [ ! -s list_of_bamPaths.info_unflitered ]; then
                 ### create empty file
                 touch list_of_bamPaths.info
             else
@@ -185,12 +184,12 @@ process get_cytoband_loci {
         while [[ "\$eventsFileFound" == "false" ]]
             do
                 
-                if [ -f events_capture.info ]; then
+                if [ -s events_capture.info ]; then
                     eventsFileFound=true
                     echo "python ${workflow.projectDir}/bin/prepManifest.py -i events_capture.info -b list_of_bamPaths.info -o events_locii_fixed.tsv"
-                    python ${workflow.projectDir}/bin/prepManifest.py -i events_capture.info -b list_of_bamPaths.info -o events_locii_fixed.tsv
+                    python ${workflow.projectDir}/bin/prepManifest.py -i <(cat events_capture.info) -b list_of_bamPaths.info -o events_locii_fixed.tsv
                 else
-                    >&2 echo "events_capture.info is not done yet or does not exist"
+                    echo "events_capture.info is not done yet or does not exist"
                     sleep 1
                 fi
             done
@@ -215,8 +214,8 @@ process get_cytoband_loci {
 
     fi
 
-    echo "done preparing raw manifest encompassing available bams"
-    echo "assuring that the number of lines in the manifest is either 0 or multiples of 5"
+    echo "--done preparing raw manifest encompassing available bams"
+    echo "--assuring that the number of lines in the manifest is either 0 or multiples of 5"
 
 
     echo "Done"

@@ -46,4 +46,13 @@ t
 validate.py
 work_addLoci/
 work_addLoci_04_03/
+analysis_addLoci_2022_04_07/
+work_addLoci_04_07/
+analysis_2022_04_07/
+modules/addLociToMinibam_wf.nf
+work_2022_04_07/
+map_to_hg38
+analysis_recover_2022_03_28/
+analysis_recover_2022_04_15/
+work_recover_2022_04_15/
 

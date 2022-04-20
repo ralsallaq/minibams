@@ -16,7 +16,7 @@ process get_clean_manifest {
     path(manifestFile)
 
     output:
-    path("manifest_all_wRegions.tsv"), emit:manifest_all_ch
+    tuple path("manifest_all_wRegions.tsv"), path("bed_like_events.tsv"), path("bedpe_like_events.tsv"), emit:manifest_all_ch
     
     """
     #!/usr/bin/bash
@@ -40,6 +40,11 @@ locus_band_del = int("${params.locus_band_del}")
 
 
 def setChromosomeName(chr, genome='${params.genome}'):
+#       Takes chr (e.g. chrX or X) and genome
+#       name (hg38 or GRCh38, hg19 or GRCh37-lite)
+#       and returns the correct format 
+#       for the chromosome (X for hg19 and chrX for hg38)
+#   
     if genome in ['hg38','GRCh38']:
         chr_ = chr if len(chr.split('chr'))>1 else 'chr'+chr
         if not chr_ in ['chrX','chrY']:
@@ -58,146 +63,196 @@ def setChromosomeName(chr, genome='${params.genome}'):
     return str(chr_)
 
 
-def getRegion(row):
-    if row[4]=='Somatic SNV' or row[4]=='Germline SNV' or row[4]=='Somatic INDEL' or row[4]=='Germline INDEL':
+def reformatRaw(rawD):
+#        Take a data frame for the 
+#        raw collected events
+#        reformats the raw dataframe into two
+#        one is bed-like for events with one
+#        loci and the other is bedpe-like
+#        for events with two loci
+# 
+    clskeep = rawD.columns[[1, 2, 3, 4]+list(range(7,rawD.shape[1]))]
+    # We first split to SVs and non-SVs
+    # Germline CNA and Somatic CNA should be SVs
+    nonSVs = rawD[(~rawD[4].str.contains('SV')) & (~rawD[4].str.contains('CNA'))].iloc[:,clskeep]
+    SVs = rawD[rawD[4].str.contains('SV') | rawD[4].str.contains('CNA')].iloc[:,clskeep]
+
+    #format SVs to bedpe format and nonSVs to bed format
+    def classify_svs(row):
         try:
-            chrA = setChromosomeName(row[9])
-            posA = int(row[10]) 
+            x=int(row[7])
+            return 't3'
         except ValueError:
-            chrA = setChromosomeName(row[10])
-            posA = int(row[11]) 
-        return [[chrA, posA-locus_band_indel, posA+locus_band_indel ]]
+            try:
+                x=int(row[8])
+                return 't1'
+            except ValueError:
+                if row[8] == 'X' or row[8] == 'Y':
+                    return 't1'
+                else:
+                    return 't2'
 
-    elif row[4]=='Somatic INDEL/SV':
-        chrA = setChromosomeName(row[8])
-        posA = int(row[9])
-        chrB = setChromosomeName(row[12])
-        posB = int(float(row[13]))
+    if SVs.shape[0] > 0:
+        SVs.loc[:,'type'] = SVs.apply(classify_svs, axis=1)
+        # Three types of rows in the SVs that are easy to convert to bedpe:
+        # We need to have something with at least the columns:
+        cols=['ChrA','PosA','OrtA','ChrB','PosB','OrtB','Type','score']
+    
+        bedpe1 = SVs.loc[SVs['type']=='t1', [8, 9, 10, 12, 13, 14, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]]
+        bedpe1.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+                          'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']
+    
+        bedpe2 = SVs.loc[SVs['type']=='t2', [9, 10, 11, 12, 13, 14, 8, 15, 7, 17, 18, 19, 20, 1, 2, 3, 4]]
+        bedpe2.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+                          'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']
+    
+        bedpe3 = SVs.loc[SVs['type']=='t3', [7, 8, 11, 7, 9, 11, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]]
+        bedpe3.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+                          'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']
+    
+    
+        bedpe = bedpe1.append(bedpe2)
+        bedpe = bedpe.append(bedpe3)
+    
+        test_numeric = pd.to_numeric(bedpe['Type'], errors='coerce')
+        bedpe = bedpe.loc[test_numeric.isnull()]
+        bedpe.loc[:,'PosA'] = bedpe['PosA'].astype(float).astype(int)
+        bedpe.loc[:,'PosB'] = bedpe['PosB'].astype(float).astype(int)
+    else:
+        bedpe = pd.DataFrame(columns=['ChrA', 'PosA', 'OrtA', 'ChrB', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+                               'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event', 'ChrA_', 'ChrB_'])
+
+    # Next are the nonSVs
+    def classify_nonSvs(row):
+        if len(row[10].split('chr')) > 1:
+            return 't1'
+        else:
+            return 't2'
+
+    if nonSVs.shape[0] > 0:
+        nonSVs.loc[:,'type'] = nonSVs.apply(classify_nonSvs, axis=1)
+        bed1 = nonSVs.loc[nonSVs['type']=='t1', [10, 11, 7, 12, 9,  17, 18, 19, 20, 1, 2, 3, 4]]
+        bed1.columns = ['ChrA_', 'PosA', 'gene', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
+                        'sname', 'gene', 'cytolocus', 'event']
+    
+        bed2 = nonSVs.loc[nonSVs['type']=='t2', [9, 10, 7, 11, 8, 17, 18, 19, 20, 1, 2, 3, 4]]
+        bed2.columns = ['ChrA_', 'PosA', 'gene', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
+                        'sname', 'gene', 'cytolocus', 'event']
+    
+        bed = bed1.append(bed2)
+        bed.loc[:,'PosA'] = bed['PosA'].astype(float).astype(int)
+    else:
+        bed = pd.DataFrame(columns=['ChrA', 'PosA', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
+                                 'sname', 'gene', 'cytolocus', 'event', 'ChrA_'])
+
+
+
+    bedpe.loc[:,'ChrA'] = bedpe['ChrA_'].apply(lambda r: setChromosomeName(r))
+    bedpe.loc[:,'ChrB'] = bedpe['ChrB_'].apply(lambda r: setChromosomeName(r))
+    bed.loc[:,'ChrA'] = bed['ChrA_'].apply(lambda r: setChromosomeName(r))
+
+    bedpe.drop(['ChrA_', 'ChrB_'], axis=1, inplace=True)
+    bed.drop('ChrA_', axis=1, inplace=True)
+
+    bedpe = bedpe[['ChrA', 'PosA', 'OrtA', 'ChrB', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+                   'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']].drop_duplicates()
+    bed = bed[['ChrA', 'PosA', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
+                   'sname', 'gene', 'cytolocus', 'event']].drop_duplicates()
+
+    bedpe = bedpe.reset_index().drop('index', axis=1)
+    bed = bed.reset_index().drop('index', axis=1)
+
+    return bedpe, bed
+
+
+
+def getRegion(row, dftype='bedpe'):
+#        Given a row from a data frame which
+#        is either a bed-like or a bedpe-like
+#        data frame, this function defines the
+#        regions for the row using the characteristics
+#        of the event
+#        the output is a list of lists encompassing:
+#        [[chrA, posA1, posA2], [chrB, posB1, posB2]] or
+#        [[chrA, posA1, posA2]] 
+# 
+
+    if dftype == 'bed':
+        if row['event']=='Somatic SNV' or row['event']=='Germline SNV' or row['event']=='Somatic INDEL' or row['event']=='Germline INDEL':
+            return [[ row['ChrA'], int(row['PosA'])-locus_band_indel, int(row['PosA'])+locus_band_indel ]]
+        
+    elif dftype == 'bedpe':
+
+        chrA = row['ChrA']; posA = int(row['PosA']); chrB = row['ChrB']; posB = int(row['PosB'])
         posA,posB = (posA,posB) if posA<posB else (posB,posA)
         chrA,chrB = (chrA,chrB) if posA<posB else (chrB,chrA)
-        return [[chrA, posA-locus_band_indel_sv, posA+locus_band_indel_sv ] , \
-                [chrB, posB-locus_band_indel_sv, posB+locus_band_indel_sv ] ]
 
-    elif row[4]=='Somatic SV / CNA' and row[16] == 'DEL':
-        chrA = setChromosomeName(row[8])
-        posA = int(row[9])
-        chrB = setChromosomeName(row[12])
-        posB = int(float(row[13]))
-        assert(chrB==chrA),'deletions cannon occur on different chromosomes'
-        posA,posB = (posA,posB) if posA<posB else (posB,posA)
-        chrA,chrB = (chrA,chrB) if posA<posB else (chrB,chrA)
-        return [[chrA, posA-locus_band_del, posB+locus_band_del]]
+        if (row['event'] == 'Germline CNA' and row['cytolocus'] == 'Deletion, Intragenic') or (row['event'] == 'Somatic CNA' and row['cytolocus'] == 'Deletion or Disruption'):
+             assert(chrB==chrA),'deletions cannon occur on different chromosomes'
+             return [[chrA, posA-locus_band_del, posB+locus_band_del]]
 
-    elif row[4]=='Somatic SV / CNA' and row[3]=='Deletion or Disruption' and \
-           setChromosomeName(row[8]) == setChromosomeName(row[12]): #deletion as well
-        chrA = setChromosomeName(row[8])
-        posA = int(row[9])
-        chrB = setChromosomeName(row[12])
-        posB = int(float(row[13]))
-        assert(chrB==chrA),'deletions cannon occur on different chromosomes'
-        posA,posB = (posA,posB) if posA<posB else (posB,posA)
-        chrA,chrB = (chrA,chrB) if posA<posB else (chrB,chrA)
-        return [[chrA, posA-locus_band_del, posB+locus_band_del]]
+        elif row['event'] == 'Somatic INDEL/SV':
+             return [[chrA, posA-locus_band_indel_sv, posA+locus_band_indel_sv ] , \
+                    [chrB, posB-locus_band_indel_sv, posB+locus_band_indel_sv ] ]
+            
+        elif row['event'] == 'Somatic SV / CNA' and row['Type'] == 'DEL': 
+            assert(chrB==chrA),'deletions cannon occur on different chromosomes'
+            return [[chrA, posA-locus_band_del, posB+locus_band_del]]
+       
+        elif row['event'] == 'Somatic SV / CNA' and row['cytolocus'] == 'Deletion or Disruption' and \
+                      chrB==chrA: #deletion
+            return [[chrA, posA-locus_band_del, posB+locus_band_del]] 
+       
+        elif row['event'] == 'Somatic SV / CNA': #more like a disruption
+            return [[chrA, posA-locus_band_sv, posA+locus_band_sv ] , \
+                   [chrB, posB-locus_band_sv, posB+locus_band_sv ]]
 
-    #elif row[4]=='Somatic SV / CNA' and row[16] == 'INS':
-    #    return str(row[8])+':'+str(int(row[9])+'-'+str(int(row[13])
+        elif row['event'] == 'Somatic SV' and not pd.isna(row['Type']) and row['Type'] == 'DEL':
+            assert(chrB==chrA),'deletions cannon occur on different chromosomes'
+            return [[chrA, posA-locus_band_del, posB+locus_band_del]]
 
-    elif row[4] == 'Somatic SV / CNA': #more like a disruption
-        chrA = setChromosomeName(row[8])
-        posA = int(row[9])
-        chrB = setChromosomeName(row[12])
-        posB = int(float(row[13]))
-        posA,posB = (posA,posB) if posA<posB else (posB,posA)
-        chrA,chrB = (chrA,chrB) if posA<posB else (chrB,chrA)
-        return [[chrA, posA-locus_band_sv, posA+locus_band_sv ] , \
-                [chrB, posB-locus_band_sv, posB+locus_band_sv ] ]
+        elif  row['event'] == 'Somatic SV':
+            return [[chrA, posA-locus_band_sv, posA+locus_band_sv ] , \
+                   [chrB, posB-locus_band_sv, posB+locus_band_sv ] ]
 
-    elif row[4]=='Somatic SV' and not pd.isna(row[16]) and row[16] == 'DEL': 
-        try:
-            chrA = setChromosomeName(row[8])
-            posA = int(row[9]) 
-        except ValueError:
-            chrA = setChromosomeName(row[9])
-            posA = int(row[10]) 
+           
 
-        chrB = setChromosomeName(row[12])
-        posB = int(float(row[13]))
-        posA,posB = (posA,posB) if posA<posB else (posB,posA)
-        chrA,chrB = (chrA,chrB) if posA<posB else (chrB,chrA)
-        assert(chrB==chrA),'deletions cannon occur on different chromosomes'
-        return [[chrA, posA-locus_band_del, posB+locus_band_del]]
-
-    elif row[4]=='Somatic SV': 
-        try:
-            chrA = setChromosomeName(row[8])
-            posA = int(row[9]) 
-        except ValueError:
-            chrA = setChromosomeName(row[9])
-            posA = int(row[10]) 
-
-        chrB = setChromosomeName(row[12])
-        posB = int(float(row[13]))
-        posA,posB = (posA,posB) if posA<posB else (posB,posA)
-        chrA,chrB = (chrA,chrB) if posA<posB else (chrB,chrA)
-        return [[chrA, posA-locus_band_sv, posA+locus_band_sv ] , \
-                [chrB, posB-locus_band_sv, posB+locus_band_sv ] ]
-
-    elif (row[4]=='Germline CNA' and row[3]=='Deletion, Intragenic') or (row[4]=='Somatic CNA' and row[3]=='Deletion or Disruption'):
-        try:
-            #chrom   loc.start       loc.end
-            chrA = setChromosomeName(row[7])
-            posA = int(row[8]) 
-            chrB = chrA
-            posB = int(float(row[9]))
-        except ValueError:
-            #crest like output
-            chrA = setChromosomeName(row[8])
-            posA = int(row[9]) 
-            chrB = setChromosomeName(row[12])
-            posB = int(float(row[13]))
-
-        posA,posB = (posA,posB) if posA<posB else (posB,posA)
-        chrA,chrB = (chrA,chrB) if posA<posB else (chrB,chrA)
-
-        assert(chrB==chrA),'deletions cannon occur on different chromosomes'
-        return [[chrA, posA-locus_band_del, posB+locus_band_del]]
-
-##### fix the raw manifest such that we get the event and the coordinates in the same place regardless to event
+# Fix the raw manifest such that we get the event and the coordinates in the same place regardless to event
 dfn = pd.read_csv('manifest.tsv', sep='\\t', header=None)
+bedpe, bed = reformatRaw(dfn)
 
-print(dfn[dfn[4]=='Somatic CNA'])
-print('here the assumption is that the manifest has 21 columns', file=sys.stderr)  
-assert(dfn.columns.shape[0] == 21),'unexpected number of columns in manifest'
+# Save to be used with liftover when needed
+bedpe.to_csv('bedpe_like_events.tsv', sep='\\t', index=False)
+bed.to_csv('bed_like_events.tsv', sep='\\t', index=False)
 
-assert(dfn.loc[:,19].str.contains('.bam').sum() == dfn.shape[0]),'some entries in the manifest do not have bams in column 19'
+assert(bed.loc[:,'bam'].str.contains('.bam').sum() == bed.shape[0]),'some entries in the bed-like file do not have bams'
+assert(bedpe.loc[:,'bam'].str.contains('.bam').sum() == bedpe.shape[0]),'some entries in the bedpe-like file do not have bams'
 
 print('after this step any null bams would make problems', file=sys.stderr)
 
-assert(dfn[17].isin(['WHOLE_GENOME', 'TRANSCRIPTOME', 'EXOME']).sum() == dfn.shape[0]),'unknown analysis types or manifest is not in expected format'
+# Now we fix the manifest to a standard shape: baseSampleName, gene, cytolocus, type, chrA, posA1,posA2, chrB, posB1,posB2, target, sampleName, bam, sampleType
+# Note that we add wiggle room to posA and posB when it applies
 
-##### now we fix the manifest to a standard shape: baseSampleName, gene, cytolocus, type, chrA, posA1,posA2, chrB, posB1,posB2, target, sampleName, bam, sampleType
-##### note that we add wiggle room to posA and posB when it applies
+n_events = bedpe.shape[0] + bed.shape[0]
 
-dfn = dfn[[1,2,3,4,7,8,9,10,11,12,13,16,17,18,19,20]].drop_duplicates()
+print('number of events after deduplication = ', n_events, file=sys.stderr)
 
-
-dfn.index = range(dfn.shape[0])
-
-n_events = dfn.shape[0]
-
-print('number of events after naive deduplication = ',n_events, file=sys.stderr)
-
-##### now we fix the manifest to a standard shape: baseSampleName, gene, cytolocus, type, chrA, posA, chrB, posB, target, sampleName, bam, sampleType
+# Now we fix the manifest to a standard shape: baseSampleName, gene, cytolocus, type, chrA, posA, chrB, posB, target, sampleName, bam, sampleType
 manifest_wregions = pd.DataFrame()
 
-for i,row in dfn.iterrows():
-    regions = getRegion(row)
-    short_row = row.loc[[1,2,3,4,17,18,19,20]]
-    assert(sum([len(kk) for kk in regions])>0),'missing regions for event {}'.format(row)
+for i,row in bedpe.iterrows():
+    # If no enough information skip
+    if (~row.loc[['ChrA', 'PosA', 'ChrB', 'PosB', 'Type', 'cytolocus']].isnull()).sum() < 6:
+        print('skipping event {}'.format(row), file = sys.stderr)
+        continue
 
-    print(short_row,short_row.values,row[[4,7,8,9,10,11,12,13,16]], file=sys.stderr)
+    regions = getRegion(row, dftype='bedpe')
+    assert(sum([len(kk) for kk in regions])>0),'missing regions for event {}'.format(row)
+    short_row = row.loc[['sname', 'gene', 'cytolocus', 'event', 'target', 'sample', 'bam', 'sampleType']]
+
+    print(short_row, short_row.values, file=sys.stderr)
     for cc in range(short_row.shape[0]):
-        manifest_wregions.loc[i,cc] = short_row.values[cc] 
+        manifest_wregions.loc[i,short_row.index[cc]] = short_row.values[cc] 
 
     if len(regions)==1: #one interval
 
@@ -222,8 +277,43 @@ for i,row in dfn.iterrows():
         print('unknown output for regions', file=sys.stderr)
         sys.exit(1)
 
+for j, row in bed.iterrows():
+    # If no enough information skip
+    if (~row.loc[['ChrA', 'PosA', 'type', 'cytolocus']].isnull()).sum() < 4:
+        print('skipping event {}'.format(row), file = sys.stderr)
+        continue
 
-assert(manifest_wregions.shape[0]==n_events),'not all events have regions, some events are missing!!!'
+    regions = getRegion(row, dftype='bed')
+    assert(sum([len(kk) for kk in regions])>0),'missing regions for event {}'.format(row)
+    short_row = row.loc[['sname', 'gene', 'cytolocus', 'event', 'target', 'sample', 'bam', 'sampleType']]
+
+    print(short_row, short_row.values, file=sys.stderr)
+    for cc in range(short_row.shape[0]):
+        manifest_wregions.loc[i+j,short_row.index[cc]] = short_row.values[cc] 
+
+    if len(regions)==1: #one interval
+
+        manifest_wregions.loc[i+j,'chrA'] = regions[0][0] 
+        manifest_wregions.loc[i+j,'posA1'] = regions[0][1] 
+        manifest_wregions.loc[i+j,'posA2'] = regions[0][2] 
+        manifest_wregions.loc[i+j,'chrB'] = None 
+        manifest_wregions.loc[i+j,'posB1'] = None 
+        manifest_wregions.loc[i+j,'posB2'] = None 
+
+    elif len(regions)==2: #two intervals
+
+        manifest_wregions.loc[i+j,'chrA'] = regions[0][0] 
+        manifest_wregions.loc[i+j,'posA1'] = regions[0][1] 
+        manifest_wregions.loc[i+j,'posA2'] = regions[0][2] 
+        manifest_wregions.loc[i+j,'chrB'] = regions[1][0] 
+        manifest_wregions.loc[i+j,'posB1'] = regions[1][1] 
+        manifest_wregions.loc[i+j,'posB2'] = regions[1][2] 
+
+    else:
+       
+        print('unknown output for regions', file=sys.stderr)
+        sys.exit(1)
+
 
 manifest_wregions.columns = ['basename','gene','cytolocus','type','target','sample','bamPath','sampleType','chrA','posA1','posA2','chrB','posB1','posB2']
 manifest_wregions.loc[:,'genome'] = '${params.genome}'
@@ -375,18 +465,18 @@ process get_GT_manifest {
     #!/usr/bin/bash
     module load python/3.7.0
 
-echo -e "number of lines in the raw file = \\t" \$(cat "${manifestCleanFile}"|wc -l)
+echo -e "number of lines in the raw file with regions = \\t" \$(cat manifest_all_wRegions.tsv|wc -l)
 
 python -c "import pandas as pd
 import numpy as np
 import sys
 
 ##### fix the raw manifest
-dfn = pd.read_csv('${manifestCleanFile}', sep='\\t')
+dfn = pd.read_csv('manifest_all_wRegions.tsv', sep='\\t')
 
 cols = ['basename','gene','cytolocus','type','target','sample','bamPath','sampleType','chrA','posA1','posA2','chrB','posB1','posB2','genome']
 
-assert(dfn.columns.isin(cols).sum() == len(cols)),'error reading the file ${manifestCleanFile}'
+assert(dfn.columns.isin(cols).sum() == len(cols)),'error reading the file manifest_all_wRegions.tsv'
 
 #### eventually all samples all genes all loci under the same analysis type (WGS/WES/RNA) and the same sample type (tumor/germline) will be merged
 
@@ -559,37 +649,50 @@ process mergeToMinibams {
     module load samtools/1.12
 
     mkdir -p ${analysisType}_${params.genome}
+   
+    echo "firt split each bam by read group" >&2
+    mkdir -p bams_split_by_rgs
 
+    find *.bam > bams_split_by_rgs/bamlistfile_raw 
+
+    cd bams_split_by_rgs
+
+    for bam in \$(cat bamlistfile_raw | xargs)
+    do
+      samtools split -@ "$task.cpus" --no-PG ../\${bam}
+    done
+
+    echo "merging \$(ls *.bam|wc -l) bams" >&2
+  
     find *.bam > bamlistfile 
 
-    echo "merge small bams into a minibam"
-    samtools merge -@ "$task.cpus" -r -c -p -f --output-fmt BAM -b bamlistfile ${analysisType}_${sampleType}_${params.genome}.notsorted.rawH.bam
+    echo "merge read groups bams into a minibam" >&2
+    samtools merge -@ "$task.cpus" -r -c -p -f --output-fmt BAM -b bamlistfile  ${analysisType}_${sampleType}_${params.genome}.notsorted.rawH.bam
 
+    echo "changing SM in the header to be unique single for a single minibam file" >&2
 
-    echo "changing SM in the header to be unique single for a single minibam file"
-
-    #### this produces the same number 92966; change the seed to get a different number
+    # This produces the same number 92966; change the seed to get a different number
     random6Digit=\$(echo 9\$(python -c "import numpy as np; np.random.seed (int('${params.random_seed}')); print(np.random.randint(90000,99999,1)[0])"))
    
     if [ "${sampleType}" == "tumor" ]; then
 
-        echo "sample type is tumor"
+        >&2 echo "sample type is tumor"
        
         SM="SJOther"\$random6Digit"_D1"
 
-        echo "\$SM"
+        >&2 echo "\$SM"
 
     elif [ "${sampleType}" == "germline" ]; then
   
-        echo "sample type is germline"
+        >&2 echo "sample type is germline"
         
         SM="SJOther"\$random6Digit"_G1"
   
-        echo "\$SM"
+        >&2 echo "\$SM"
 
     else
 
-        echo "unknown sample type"
+        >&2 echo "unknown sample type"
 
     fi
 
@@ -599,16 +702,16 @@ process mergeToMinibams {
 
     samtools reheader ${analysisType}_${sampleType}_${params.genome}.notsorted.fixedH ${analysisType}_${sampleType}_${params.genome}.notsorted.rawH.bam > ${analysisType}_${sampleType}_${params.genome}.notsorted.bam 
     
-    echo "sort by coordinates"
-    samtools sort -@ "$task.cpus" ${analysisType}_${sampleType}_${params.genome}.notsorted.bam -o ${analysisType}_${params.genome}/"\$SM".bam 
+    echo "sort by coordinates" >&2
+    samtools sort -@ "$task.cpus" ${analysisType}_${sampleType}_${params.genome}.notsorted.bam -o ../${analysisType}_${params.genome}/"\$SM".bam 
 
-    cd ${analysisType}_${params.genome}/
+    cd ../${analysisType}_${params.genome}/
 
-    echo "index to ready for testing"
+    echo "index to ready for testing" >&2
     samtools index -@ "$task.cpus" "\$SM".bam
 
 
-    echo "done"
+    echo "done" >&2
 
     
     """
