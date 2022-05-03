@@ -16,7 +16,8 @@ process get_clean_manifest {
     path(manifestFile)
 
     output:
-    tuple path("manifest_all_wRegions.tsv"), path("bed_like_events.tsv"), path("bedpe_like_events.tsv"), emit:manifest_all_ch
+    tuple path("manifest_all_wRegions.tsv"), path("bed_like_events.tsv"), path("bedpe_like_events.tsv"),
+          path("bed_events_wheader.bed"), path("bedpe_events_wheader.bedpe"), emit:manifest_all_ch
     
     """
     #!/usr/bin/bash
@@ -98,28 +99,28 @@ def reformatRaw(rawD):
         # We need to have something with at least the columns:
         cols=['ChrA','PosA','OrtA','ChrB','PosB','OrtB','Type','score']
     
-        bedpe1 = SVs.loc[SVs['type']=='t1', [8, 9, 10, 12, 13, 14, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]]
-        bedpe1.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+        bedpe_like1 = SVs.loc[SVs['type']=='t1', [8, 9, 10, 12, 13, 14, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]]
+        bedpe_like1.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
                           'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']
     
-        bedpe2 = SVs.loc[SVs['type']=='t2', [9, 10, 11, 12, 13, 14, 8, 15, 7, 17, 18, 19, 20, 1, 2, 3, 4]]
-        bedpe2.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+        bedpe_like2 = SVs.loc[SVs['type']=='t2', [9, 10, 11, 12, 13, 14, 8, 15, 7, 17, 18, 19, 20, 1, 2, 3, 4]]
+        bedpe_like2.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
                           'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']
     
-        bedpe3 = SVs.loc[SVs['type']=='t3', [7, 8, 11, 7, 9, 11, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]]
-        bedpe3.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+        bedpe_like3 = SVs.loc[SVs['type']=='t3', [7, 8, 11, 7, 9, 11, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]]
+        bedpe_like3.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
                           'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']
     
     
-        bedpe = bedpe1.append(bedpe2)
-        bedpe = bedpe.append(bedpe3)
+        bedpe_like = bedpe_like1.append(bedpe_like2)
+        bedpe_like = bedpe_like.append(bedpe_like3)
     
-        test_numeric = pd.to_numeric(bedpe['Type'], errors='coerce')
-        bedpe = bedpe.loc[test_numeric.isnull()]
-        bedpe.loc[:,'PosA'] = bedpe['PosA'].astype(float).astype(int)
-        bedpe.loc[:,'PosB'] = bedpe['PosB'].astype(float).astype(int)
+        test_numeric = pd.to_numeric(bedpe_like['Type'], errors='coerce')
+        bedpe_like = bedpe_like.loc[test_numeric.isnull()]
+        bedpe_like.loc[:,'PosA'] = bedpe_like['PosA'].astype(float).astype(int)
+        bedpe_like.loc[:,'PosB'] = bedpe_like['PosB'].astype(float).astype(int)
     else:
-        bedpe = pd.DataFrame(columns=['ChrA', 'PosA', 'OrtA', 'ChrB', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+        bedpe_like = pd.DataFrame(columns=['ChrA', 'PosA', 'OrtA', 'ChrB', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
                                'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event', 'ChrA_', 'ChrB_'])
 
     # Next are the nonSVs
@@ -131,38 +132,52 @@ def reformatRaw(rawD):
 
     if nonSVs.shape[0] > 0:
         nonSVs.loc[:,'type'] = nonSVs.apply(classify_nonSvs, axis=1)
-        bed1 = nonSVs.loc[nonSVs['type']=='t1', [10, 11, 7, 12, 9,  17, 18, 19, 20, 1, 2, 3, 4]]
-        bed1.columns = ['ChrA_', 'PosA', 'gene', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
+        bed_like1 = nonSVs.loc[nonSVs['type']=='t1', [10, 11, 7, 12, 9,  17, 18, 19, 20, 1, 2, 3, 4]]
+        bed_like1.columns = ['ChrA_', 'PosA', 'gene', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
                         'sname', 'gene', 'cytolocus', 'event']
     
-        bed2 = nonSVs.loc[nonSVs['type']=='t2', [9, 10, 7, 11, 8, 17, 18, 19, 20, 1, 2, 3, 4]]
-        bed2.columns = ['ChrA_', 'PosA', 'gene', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
+        bed_like2 = nonSVs.loc[nonSVs['type']=='t2', [9, 10, 7, 11, 8, 17, 18, 19, 20, 1, 2, 3, 4]]
+        bed_like2.columns = ['ChrA_', 'PosA', 'gene', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
                         'sname', 'gene', 'cytolocus', 'event']
     
-        bed = bed1.append(bed2)
-        bed.loc[:,'PosA'] = bed['PosA'].astype(float).astype(int)
+        bed_like = bed_like1.append(bed_like2)
+        bed_like.loc[:,'PosA'] = bed_like['PosA'].astype(float).astype(int)
     else:
-        bed = pd.DataFrame(columns=['ChrA', 'PosA', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
+        bed_like = pd.DataFrame(columns=['ChrA', 'PosA', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
                                  'sname', 'gene', 'cytolocus', 'event', 'ChrA_'])
 
 
 
-    bedpe.loc[:,'ChrA'] = bedpe['ChrA_'].apply(lambda r: setChromosomeName(r))
-    bedpe.loc[:,'ChrB'] = bedpe['ChrB_'].apply(lambda r: setChromosomeName(r))
-    bed.loc[:,'ChrA'] = bed['ChrA_'].apply(lambda r: setChromosomeName(r))
+    bedpe_like.loc[:,'ChrA'] = bedpe_like['ChrA_'].apply(lambda r: setChromosomeName(r))
+    bedpe_like.loc[:,'ChrB'] = bedpe_like['ChrB_'].apply(lambda r: setChromosomeName(r))
+    bed_like.loc[:,'ChrA'] = bed_like['ChrA_'].apply(lambda r: setChromosomeName(r))
 
-    bedpe.drop(['ChrA_', 'ChrB_'], axis=1, inplace=True)
-    bed.drop('ChrA_', axis=1, inplace=True)
+    bedpe_like.drop(['ChrA_', 'ChrB_'], axis=1, inplace=True)
+    bed_like.drop('ChrA_', axis=1, inplace=True)
 
-    bedpe = bedpe[['ChrA', 'PosA', 'OrtA', 'ChrB', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+    bedpe_like = bedpe_like[['ChrA', 'PosA', 'OrtA', 'ChrB', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
                    'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']].drop_duplicates()
-    bed = bed[['ChrA', 'PosA', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
+    bed_like = bed_like[['ChrA', 'PosA', 'type', 'pair', 'target', 'sample', 'bam', 'sampleType', \
                    'sname', 'gene', 'cytolocus', 'event']].drop_duplicates()
 
-    bedpe = bedpe.reset_index().drop('index', axis=1)
-    bed = bed.reset_index().drop('index', axis=1)
+    bedpe_like = bedpe_like.reset_index().drop('index', axis=1)
+    bed_like = bed_like.reset_index().drop('index', axis=1)
 
-    return bedpe, bed
+    ## get bedpe and bed format to use with bedtools
+    bedpe = bedpe_like.copy()
+    bedpe.loc[:,'PosA1'] = bedpe['PosA'].apply(lambda r: int(r)-1 if pd.notna(r) else r).values
+    bedpe.loc[:,'PosB1'] = bedpe['PosB'].apply(lambda r: int(r)-1 if pd.notna(r) else r).values
+
+    bedpe = bedpe[['ChrA', 'PosA1', 'PosA', 'ChrB', 'PosB1', 'PosB', 'Type', 'score', 'OrtA', 'OrtB', \
+                   'gene', 'cytolocus', 'event']].drop_duplicates()
+  
+    bed = bed_like.copy()
+    bed.loc[:, 'PosA1'] = bed['PosA'].apply(lambda r: int(r)-1 if pd.notna(r) else r).values
+
+    bed = bed[['ChrA', 'PosA1', 'PosA', 'type', \
+               'gene', 'cytolocus', 'event']].drop_duplicates()
+
+    return bedpe_like, bed_like, bedpe, bed
 
 
 
@@ -219,28 +234,32 @@ def getRegion(row, dftype='bedpe'):
 
 # Fix the raw manifest such that we get the event and the coordinates in the same place regardless to event
 dfn = pd.read_csv('manifest.tsv', sep='\\t', header=None)
-bedpe, bed = reformatRaw(dfn)
+bedpe_like, bed_like, bedpe, bed = reformatRaw(dfn)
 
 # Save to be used with liftover when needed
-bedpe.to_csv('bedpe_like_events.tsv', sep='\\t', index=False)
-bed.to_csv('bed_like_events.tsv', sep='\\t', index=False)
+bedpe_like.to_csv('bedpe_like_events.tsv', sep='\\t', index=False)
+bed_like.to_csv('bed_like_events.tsv', sep='\\t', index=False)
 
-assert(bed.loc[:,'bam'].str.contains('.bam').sum() == bed.shape[0]),'some entries in the bed-like file do not have bams'
-assert(bedpe.loc[:,'bam'].str.contains('.bam').sum() == bedpe.shape[0]),'some entries in the bedpe-like file do not have bams'
+# Save to use with bedtools when needed
+bedpe.to_csv('bedpe_events_wheader.bedpe', sep='\\t', index=False)
+bed.to_csv('bed_events_wheader.bed', sep='\\t', index=False)
+
+assert(bed_like.loc[:,'bam'].str.contains('.bam').sum() == bed_like.shape[0]),'some entries in the bed_like file do not have bams'
+assert(bedpe_like.loc[:,'bam'].str.contains('.bam').sum() == bedpe_like.shape[0]),'some entries in the bedpe_like file do not have bams'
 
 print('after this step any null bams would make problems', file=sys.stderr)
 
 # Now we fix the manifest to a standard shape: baseSampleName, gene, cytolocus, type, chrA, posA1,posA2, chrB, posB1,posB2, target, sampleName, bam, sampleType
 # Note that we add wiggle room to posA and posB when it applies
 
-n_events = bedpe.shape[0] + bed.shape[0]
+n_events = bedpe_like.shape[0] + bed_like.shape[0]
 
 print('number of events after deduplication = ', n_events, file=sys.stderr)
 
 # Now we fix the manifest to a standard shape: baseSampleName, gene, cytolocus, type, chrA, posA, chrB, posB, target, sampleName, bam, sampleType
 manifest_wregions = pd.DataFrame()
 
-for i,row in bedpe.iterrows():
+for i,row in bedpe_like.iterrows():
     # If no enough information skip
     if (~row.loc[['ChrA', 'PosA', 'ChrB', 'PosB', 'Type', 'cytolocus']].isnull()).sum() < 6:
         print('skipping event {}'.format(row), file = sys.stderr)
@@ -277,7 +296,7 @@ for i,row in bedpe.iterrows():
         print('unknown output for regions', file=sys.stderr)
         sys.exit(1)
 
-for j, row in bed.iterrows():
+for j, row in bed_like.iterrows():
     # If no enough information skip
     if (~row.loc[['ChrA', 'PosA', 'type', 'cytolocus']].isnull()).sum() < 4:
         print('skipping event {}'.format(row), file = sys.stderr)
