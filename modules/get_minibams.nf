@@ -613,12 +613,21 @@ process generateSubBams {
     """
 
     module load samtools/1.12
+    module load sjcb/openjdk/17.0.0_35
+    # This is old and compiled to run on 1 thread
+    # very slow
+    #module load samviewwithmate
+  
+    # TODO build a docker image
+    export PATH="/research/rgs01/project_space/zhanggrp/MethodDevelopment/common/ralsalla/minibam/optimized_branch/test_getting_mates/jvarkit/dist/:$PATH"
     
     function getSmallBam() {
 
         outputBam=\$(echo \$(basename \$1 _wheader.bed).bam)
+        inputBed=\$(echo \$(basename \$1 _wheader.bed).bed)
         inputBam=\$(cat \$1|sed 1d|cut -f 5|sort|uniq)
         inputSam=\$(echo "\$(basename \$inputBam .bam)".sam)
+        cat \$1 | sed 1d | cut -f 1-3 > \$inputBed
 
         #keep going but save exit code
         EXIT_CODE=0
@@ -628,11 +637,20 @@ process generateSubBams {
 
         if [[ \$EXIT_CODE -eq 0 ]]; then
            echo "processing \$inputBam to \$outputBam"
-           samtools view -@ "$task.cpus" -L <(cat \$1 |sed 1d|cut -f 1-3)  -o \$outputBam \$inputBam
+           # This would not extract mates if they are mapped outside the region
+           # and will end up with singleton reads (mapped reads with no mapped mates)
+           # samtools view -@ "$task.cpus" -L \$inputBed  -o \$outputBam \$inputBam
+           #java.sh -XX:ActiveProcessorCount="$task.cpus" -jar \$(which samviewwithmate.jar) --bed \$inputBed --samoutputformat BAM -o \$outputBam \$inputBam
+           java.sh -XX:ParallelGCThreads=$task.cpus -jar \$(which samviewwithmate.jar) --bed \$inputBed --samoutputformat BAM -o \$outputBam \$inputBam
+ 
         else
            echo "processing \$inputSam to \$outputBam"
            samtools view -h \$inputBam > \$inputSam || true 
-           samtools view -@ "$task.cpus"  -b -L <(cat \$1 |sed 1d|cut -f 1-3) -o \$outputBam  \$inputSam
+           # This would not extract mates if they are mapped outside the region
+           # and will end up with singleton reads (mapped reads with no mapped mates)
+           # samtools view -@ "$task.cpus"  -b -L \$inputBed  -o \$outputBam  \$inputSam
+           # This will output the reads within the regions and their mates wherever they are
+           java.sh -XX:ParallelGCThreads=$task.cpus -jar \$(which samviewwithmate.jar) --bed \$inputBed  --samoutputformat BAM -o \$outputBam \$inputSam
         fi
     }
 
@@ -651,7 +669,7 @@ process mergeToMinibams {
     tag "merge to minibams"
     //container "stjudecloud/samtools:branch-chipseq-1.0.2"
     label 'multithread'
-    publishDir "${params.outD}/minibams", mode: 'copy'
+    publishDir "${params.outD}", mode: 'copy'
 
     input:
     path ("*.bam")

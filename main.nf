@@ -32,15 +32,21 @@ params.random_seed = 900
 params.addLociToExisitngMB = false
 params.tartanIndex_projDir = "/clinical/cgs01/clingen/prod/tartan/index/data/ClinicalPilot/ClinicalPilot/"
 params.exBedFile = "bedFile_regionsToAdd.bed"
-params.minibams_dir = "analysis_save/minibams/"
+params.minibams_dir = "analysis/minibams/"
+
+// Parameters for get_hg38_mini_wf workflow 
+params.get_hg38_mini = false
+params.target_genome = 'hg38'
+params.events_bed_file = "analysis_2022_04_14/bed_events_wheader.bed"
+params.events_bedpe_file = "analysis_2022_04_14/bedpe_events_wheader.bedpe"
 
 if (params.use_manifest_file == null & params.abnormal_eventsFile == null){
         log.error("if --use_manifest_file is null --abnormal_eventsFile should point to a file")
         exit 1
 }
 
-if (params.recover & params.abnormal_eventsFile == null & params.validate_manifest) {
-    log.error("for --recover option --abnormal_eventsFile is required and --validate_manifest is not allowed")
+if (params.recover & params.abnormal_eventsFile == null) {
+    log.error("for --recover option --abnormal_eventsFile is required")
     exit 1
 }
 
@@ -51,17 +57,20 @@ if (params.addLociToExisitngMB) {
         }
     }
 
+// Import get_hg38_mini_wf workflow 
+include { get_hg38_mini_wf } from './modules/get_hg38_mini_wf' params(outD:params.outD+'/hg38_minibams/', \
+                  minibams_dir:params.minibams_dir, genome:params.genome, target_genome:params.target_genome, events_bed_file:params.events_bed_file, \
+                  events_bedpe_file:params.events_bedpe_file, random_seed:params.random_seed)
 
 
-//import addLociToMinibam workflow
-include { addLociToMinibam_wf } from './modules/addLociToMinibam_wf' params(outD:'analysis/add_loci/', \
-                 tartanIndex_projDir:'/clinical/cgs01/clingen/prod/tartan/index/data/ClinicalPilot/ClinicalPilot/', \
-                 exBedFile:'bedFile_regionsToAdd.bed', minibams_dir:'analysis/minibams/', \
+// Import addLociToMinibam workflow
+include { addLociToMinibam_wf } from './modules/addLociToMinibam_wf' params(outD:params.outD+'/add_loci/', \
+                 tartanIndex_projDir:params.tartanIndex_projDir, \
+                 exBedFile:params.exBedFile, minibams_dir:params.minibams_dir, \
                  genome:params.genome, locus_band_indel:params.locus_band_indel, locus_band_indel_sv:params.locus_band_indel_sv, \
                  locus_band_sv:params.locus_band_sv, random_seed:params.random_seed)
 
-// generate ground-truth manifests
-
+// Generate ground-truth manifests
 include { get_cytoband_loci as get_cytoband_loci1 } from './modules/get_cytoband_loci' params(genome:params.genome, lookupDircs:lookupDircs_list[0])
 include { get_cytoband_loci as get_cytoband_loci2 } from './modules/get_cytoband_loci' params(genome:params.genome, lookupDircs:lookupDircs_list[1])
 
@@ -78,7 +87,6 @@ include { get_GT_manifest as get_GT_manifest_WES_tumor } from './modules/get_min
 include { get_GT_manifest as get_GT_manifest_WES_gl } from './modules/get_minibams' params( outD:params.outD) 
 
 // generate bed files
-
 include { generateBEDFiles as generateBEDFiles_RNA_tumor } from './modules/get_minibams' params( outD:params.outD)
 
 include { generateBEDFiles as generateBEDFiles_WGS_tumor } from './modules/get_minibams' params( outD:params.outD)
@@ -99,13 +107,13 @@ include { generateSubBams as generateSubBams_WES_gl } from './modules/get_miniba
 
 
 // merge subbams to minibams
-include { mergeToMinibams as mergeToMinibams_RNA_tumor } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD)
+include { mergeToMinibams as mergeToMinibams_RNA_tumor } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD+'/'+params.genome+'_minibams/')
 
-include { mergeToMinibams as mergeToMinibams_WGS_tumor } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD)
-include { mergeToMinibams as mergeToMinibams_WGS_gl } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD)
+include { mergeToMinibams as mergeToMinibams_WGS_tumor } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD+'/'+params.genome+'_minibams/')
+include { mergeToMinibams as mergeToMinibams_WGS_gl } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD+'/'+params.genome+'_minibams/')
 
-include { mergeToMinibams as mergeToMinibams_WES_tumor } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD)
-include { mergeToMinibams as mergeToMinibams_WES_gl } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD)
+include { mergeToMinibams as mergeToMinibams_WES_tumor } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD+'/'+params.genome+'_minibams/')
+include { mergeToMinibams as mergeToMinibams_WES_gl } from './modules/get_minibams' params(genome:params.genome, random_seed:params.random_seed, outD:params.outD+'/'+params.genome+'_minibams/')
 
 workflow {
     main:
@@ -115,6 +123,15 @@ workflow {
     if (params.addLociToExisitngMB) {
 
         addLociToMinibam_wf()
+    
+    } else if (params.validate_manifest) {
+
+        get_clean_manifest_ch =  channel.fromPath(params.use_manifest_file)
+        validate_manifest(get_clean_manifest_ch)
+
+    } else if (params.get_hg38_mini) {
+
+        get_hg38_mini_wf() 
      
     } else {
 
@@ -135,9 +152,9 @@ workflow {
             get_clean_manifest(events_capture_ch)
     
             // Validate the manifest if asked to
-            if (params.validate_manifest) {
-                validate_manifest(get_clean_manifest.out[0])
-            }
+            //if (params.validate_manifest) {
+            //    validate_manifest(get_clean_manifest.out[0])
+            //}
     
             // Get ground truth manifests by analysis-type and sample type
             get_GT_manifest_RNA_tumor(get_clean_manifest.out[0], channel.value('TRANSCRIPTOME'), channel.value('tumor'))
@@ -155,9 +172,9 @@ workflow {
             get_clean_manifest_ch =  channel.fromPath(params.use_manifest_file) //.splitCsv(header: true, sep: "\t", strip: true)
     
             // Validate the manifest if asked to
-            if (params.validate_manifest) {
-                validate_manifest(get_clean_manifest.out)
-            }
+            //if (params.validate_manifest) {
+            //    validate_manifest(get_clean_manifest_ch)
+            //}
     
             // Get ground truth manifests by analysis-type and sample type
         

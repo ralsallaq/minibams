@@ -126,9 +126,10 @@ from collections import defaultdict
 
 bedFile = pd.read_csv('${bedFileWSampleName}', sep='\\t')
 
-assert(bedFile.columns.isin(['disease_sample', 'chr', 'posA', 'posB']).sum() == 4), 'unexpected columns in {}'.format('${bedFileWSampleName}')
+assert(bedFile.columns.isin(['Sample', 'chr', 'posA', 'posB']).sum() == 4), 'unexpected columns in {}'.format('${bedFileWSampleName}')
 
-samples_ = bedFile['disease_sample'].apply(lambda r:r.split('_')[0]+'_')
+# This takes care if the samples provided are SJMB030021_D1, SJMB030021_G1 or just SJMB030021
+samples_ = bedFile['Sample'].apply(lambda r:r.split('_')[0]+'_')
 
 bams = defaultdict(set)
 
@@ -141,8 +142,8 @@ final_df = pd.DataFrame()
 idx = 0
 
 for i, row in bedFile.iterrows():
-    bams_i = list(bams[row['disease_sample'].split('_')[0]]) #list of 5bams
-    print(row['disease_sample'], bams_i)
+    bams_i = list(bams[row['Sample'].split('_')[0]]) #list of 5bams
+    print(row['Sample'], bams_i)
     assert(len(bams_i)==5),'not 5 bams!!'
     temp = pd.DataFrame({'bamPath':bams_i})
     temp.loc[:,'chr'] = row['chr']

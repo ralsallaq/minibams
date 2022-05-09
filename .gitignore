@@ -55,4 +55,14 @@ map_to_hg38
 analysis_recover_2022_03_28/
 analysis_recover_2022_04_15/
 work_recover_2022_04_15/
+analysis_2022_04_14/
+analysis_2022_5_3/
+t.sh
+test_getting_mates/
+ttry.bam
+work_2022_04_14/
+work_2022_5_3/
+analysis_addLoci_2022_5_3_wrong/
+test_hg38_minibams/
+work_addLoci_05_05/
 
