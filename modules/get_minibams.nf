@@ -45,7 +45,12 @@ def setChromosomeName(chr, genome='${params.genome}'):
 #       name (hg38 or GRCh38, hg19 or GRCh37-lite)
 #       and returns the correct format 
 #       for the chromosome (X for hg19 and chrX for hg38)
-#   
+#       Args:
+#            chr either chrX or X
+#            genome hg19 (or GRCh37-lite) or hg38 (or GRCh38)
+#      Output:
+#            string (e.g. chrX for hg38)
+ 
     if genome in ['hg38','GRCh38']:
         chr_ = chr if len(chr.split('chr'))>1 else 'chr'+chr
         if not chr_ in ['chrX','chrY']:
@@ -71,7 +76,14 @@ def reformatRaw(rawD):
 #        one is bed-like for events with one
 #        loci and the other is bedpe-like
 #        for events with two loci
-# 
+#        Args:
+#            rawD: a data-frame of events as collected 
+#        Output: 
+#            bedpe_like data-frame defining two-loci events
+#            bed_like data-frame defining one-loci events
+#            bedpe a BEDPE file
+#            bed a BED file
+
     clskeep = rawD.columns[[1, 2, 3, 4]+list(range(7,rawD.shape[1]))]
     # We first split to SVs and non-SVs
     # Germline CNA and Somatic CNA should be SVs
@@ -207,8 +219,8 @@ def getRegion(row, dftype='bedpe'):
              return [[chrA, posA-locus_band_del, posB+locus_band_del]]
 
         elif row['event'] == 'Somatic INDEL/SV':
-             return [[chrA, posA-locus_band_indel_sv, posA+locus_band_indel_sv ] , \
-                    [chrB, posB-locus_band_indel_sv, posB+locus_band_indel_sv ] ]
+             # This is either a deletion or insertion
+             return [[chrA, posA-locus_band_del, posB+locus_band_del]]
             
         elif row['event'] == 'Somatic SV / CNA' and row['Type'] == 'DEL': 
             assert(chrB==chrA),'deletions cannon occur on different chromosomes'
@@ -223,10 +235,15 @@ def getRegion(row, dftype='bedpe'):
                    [chrB, posB-locus_band_sv, posB+locus_band_sv ]]
 
         elif row['event'] == 'Somatic SV' and not pd.isna(row['Type']) and row['Type'] == 'DEL':
-            assert(chrB==chrA),'deletions cannon occur on different chromosomes'
+            assert(chrB==chrA),'deletions cannot occur on different chromosomes'
+            return [[chrA, posA-locus_band_del, posB+locus_band_del]]
+
+        elif row['event'] == 'Somatic SV' and not pd.isna(row['Type']) and row['Type'] == 'INS':
+            assert(chrB==chrA),'insertions might not occur on different chromosomes'
             return [[chrA, posA-locus_band_del, posB+locus_band_del]]
 
         elif  row['event'] == 'Somatic SV':
+            # SV event that manifest on two loci
             return [[chrA, posA-locus_band_sv, posA+locus_band_sv ] , \
                    [chrB, posB-locus_band_sv, posB+locus_band_sv ] ]
 
@@ -308,25 +325,25 @@ for j, row in bed_like.iterrows():
 
     print(short_row, short_row.values, file=sys.stderr)
     for cc in range(short_row.shape[0]):
-        manifest_wregions.loc[i+j,short_row.index[cc]] = short_row.values[cc] 
+        manifest_wregions.loc[i+j+1,short_row.index[cc]] = short_row.values[cc] 
 
     if len(regions)==1: #one interval
 
-        manifest_wregions.loc[i+j,'chrA'] = regions[0][0] 
-        manifest_wregions.loc[i+j,'posA1'] = regions[0][1] 
-        manifest_wregions.loc[i+j,'posA2'] = regions[0][2] 
-        manifest_wregions.loc[i+j,'chrB'] = None 
-        manifest_wregions.loc[i+j,'posB1'] = None 
-        manifest_wregions.loc[i+j,'posB2'] = None 
+        manifest_wregions.loc[i+j+1,'chrA'] = regions[0][0] 
+        manifest_wregions.loc[i+j+1,'posA1'] = regions[0][1] 
+        manifest_wregions.loc[i+j+1,'posA2'] = regions[0][2] 
+        manifest_wregions.loc[i+j+1,'chrB'] = None 
+        manifest_wregions.loc[i+j+1,'posB1'] = None 
+        manifest_wregions.loc[i+j+1,'posB2'] = None 
 
     elif len(regions)==2: #two intervals
 
-        manifest_wregions.loc[i+j,'chrA'] = regions[0][0] 
-        manifest_wregions.loc[i+j,'posA1'] = regions[0][1] 
-        manifest_wregions.loc[i+j,'posA2'] = regions[0][2] 
-        manifest_wregions.loc[i+j,'chrB'] = regions[1][0] 
-        manifest_wregions.loc[i+j,'posB1'] = regions[1][1] 
-        manifest_wregions.loc[i+j,'posB2'] = regions[1][2] 
+        manifest_wregions.loc[i+j+1,'chrA'] = regions[0][0] 
+        manifest_wregions.loc[i+j+1,'posA1'] = regions[0][1] 
+        manifest_wregions.loc[i+j+1,'posA2'] = regions[0][2] 
+        manifest_wregions.loc[i+j+1,'chrB'] = regions[1][0] 
+        manifest_wregions.loc[i+j+1,'posB1'] = regions[1][1] 
+        manifest_wregions.loc[i+j+1,'posB2'] = regions[1][2] 
 
     else:
        

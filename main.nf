@@ -17,10 +17,10 @@ params.validate_manifest = false
 
 //Parameters for wiggle room around locus
 params.locus_band_indel = 10
-params.locus_band_indel_sv = 350 //this example shows it must be 350
+//params.locus_band_indel_sv = 10 //this example shows it must be 150
+//SJCBF100_E      FLT3    chr13   28608314        -       coding  FLT3    chr13   28608340        -       itd     SJCBF100        FLT3    ITD     Somatic INDEL/SV
+//SJAML030006_D1  FLT3    chr13   28608188        -       intron  FLT3    chr13   28608236        -       itd     SJAML030006     FLT3    ITD     Somatic INDEL/SV
 params.locus_band_del = 10 //wiggle room before and after a del 
-//SJCBF100_E  21  36231771    -   60  8   93029591    -   44  CTX GENIC   RUNX1_RUNX1T1
-//SJCBF100_E  21  36231771    -   4   8   93074937    -   9   CTX GENIC   RUNX1_RUNX1T1
 
 params.locus_band_sv = 500
 

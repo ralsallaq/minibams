@@ -49,7 +49,6 @@ work_addLoci_04_03/
 analysis_addLoci_2022_04_07/
 work_addLoci_04_07/
 analysis_2022_04_07/
-modules/addLociToMinibam_wf.nf
 work_2022_04_07/
 map_to_hg38
 analysis_recover_2022_03_28/
@@ -65,4 +64,29 @@ work_2022_5_3/
 analysis_addLoci_2022_5_3_wrong/
 test_hg38_minibams/
 work_addLoci_05_05/
+analysis_2022_6_23/
+analysis_2022_6_23_s/
+dag_entire/
+events_by_leveragingTables_crestEvents.tsv
+events_leveragingTables/
+find_test
+get_events.py
+get_missing_events_new.py
+issues
+locii_input_file_excludingLargeEvents.tsv
+locii_input_file_records
+locii_input_file_records_dedup
+locii_input_file_records_dedup_crest
+locii_input_file_records_dedup_howIgot
+locii_input_file_uniq.tsv
+missing_from_pipeline.tsv
+modules/get_events_loci_wf_try.nf
+modules/get_events_loci_wf_tt.nf
+modules/get_valid_clean_manifest_wf.nf
+modules/post_validation_wf.nf
+note_how_to
+recover_test/
+recover_test2/
+templates/
+work_2022_6_23/
 

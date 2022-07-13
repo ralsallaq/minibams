@@ -33,10 +33,10 @@ process get_cytoband_loci {
     echo -e "lookupDir is ${params.lookupDircs}" 
 
     function getRecordsForSamples() {
-        #ingore errors of not finding something
-        ### looks under two directories in clingen for the sample data
-        ### and collects and saves a list of records for the sample
-        #### the types for the samples
+        # Ingore errors if not finding something
+        # looks under two directories in clingen for the sample data
+        # and collects and saves a list of records for the sample
+        # the types for the samples
 
         mkdir -p sample_records
 
@@ -52,7 +52,7 @@ process get_cytoband_loci {
    }
 
     function getEvents() {
-        ### goes through cytoLocus events for samples and saves a file encompassing the event
+        # Goes through cytoLocus events for samples and saves a file encompassing the event
 
         rm -f events_capture.info
     
@@ -67,28 +67,38 @@ process get_cytoband_loci {
             
             genes=\$(echo ${gene}|tr "\\/\\ " "|")
 
-            ### this covers deletions
+            # This covers deletions
             cat \$recFile | grep -w 'conserting_crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "DEL" >> sample_records/"'\$outputFile'" '  
-            ### this seems to cover amplifications
+            # This covers translocations within the same chromosome (ITX) or different chromosomes (CTX)
             cat \$recFile | grep -w 'conserting_crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "ITX" >> sample_records/"'\$outputFile'" '  
             cat \$recFile | grep -w 'conserting_crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "CTX" >> sample_records/"'\$outputFile'" '  
-            ### this seems to cover duplications
+            # This covers insertions
             cat \$recFile | grep -w 'conserting_crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "INS" >> sample_records/"'\$outputFile'" '  
 
             if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
                 
-                echo "could not find any in conserting_crest-post will look into crest-post" 
-                cat \$recFile | grep -w 'crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "DEL" >> sample_records/"'\$outputFile'" '  
-                ### this seems to cover amplifications
-                cat \$recFile | grep -w 'crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "ITX" >> sample_records/"'\$outputFile'" '  
-                cat \$recFile | grep -w 'crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "CTX" >> sample_records/"'\$outputFile'" '  
-                ### this seems to cover duplications
-                cat \$recFile | grep -w 'crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "INS" >> sample_records/"'\$outputFile'" '  
+                echo "could not find any in conserting_crest-post will look into crest-post and cicero-post" 
+                # This covers deletions
+                cat \$recFile | grep -wE 'crest-post|cicero-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "DEL" >> sample_records/"'\$outputFile'" '  
+                # This covers translocations within the same chromosome (ITX) or different chromosomes (CTX)
+                cat \$recFile | grep -wE 'crest-post|cicero-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "ITX" >> sample_records/"'\$outputFile'" '  
+                cat \$recFile | grep -wE 'crest-post|cicero-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "CTX" >> sample_records/"'\$outputFile'" '  
+                # This covers insertions
+                cat \$recFile | grep -w 'crest-post|cicero-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "INS" >> sample_records/"'\$outputFile'" '  
             fi
 
         elif [ "${type}" == "Somatic INDEL/SV" ]; then
 
+            # First look into classified results as it is a compilation of different results
             grep -iE "Somatic" \$recFile | grep 'sv-somatic-classified' | parallel ' grep -w "'${gene}'" {}/*.txt| grep -iE "'${cytoLocus}'" >> sample_records/"'\$outputFile'" ' 
+            if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
+                echo "could not find any in sv-somatic-classified will look into crest-post and cicero-itd-post"
+                # This seems to cover deletions
+                cat \$recFile | grep -wE 'crest-post|cicero-itd-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "DEL" >> sample_records/"'\$outputFile'" '
+                # This seems to cover duplications or insertions
+                cat \$recFile | grep -wE 'crest-post|cicero-itd-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "INS" >> sample_records/"'\$outputFile'" '
+                
+            fi
 
         elif [ "${type}" == "Somatic CNA" ] && [ "${cytoLocus}" == "Deletion or Disruption" ]; then
 
@@ -96,23 +106,49 @@ process get_cytoband_loci {
 
 
         elif [ "${type}" == "Germline CNA" ] && [ "${cytoLocus}" == "Deletion, Intragenic" ]; then
-            ## example SJMB030020_G1_gl_conserting_unpaired_smcls.txt
+            # Example SJMB030020_G1_gl_conserting_unpaired_smcls.txt
 
             grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}"|sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*.txt | grep -iE "Del" >> sample_records/"'\$outputFile'" '
 
 
-        elif [ "${type}" == "Somatic SV" ] && ([ "${cytoLocus}" == "Fusion" ] || [ "${cytoLocus}" == "Missed Fusion" ] || [ "${cytoLocus}" == "Position Effect" ] || [ "${cytoLocus}" == "Amplification / Disruption" ]); then
+        elif [ "${type}" == "Somatic CNA" ] && [ "${cytoLocus}" == "Deletion or Disruption" ]; then
+
+            grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}"|sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*.txt | grep -iE "Del" >> sample_records/"'\$outputFile'" '
+
+
+        elif [ "${type}" == "Germline CNA" ] && [ "${cytoLocus}" == "Deletion, Intragenic" ]; then
+            # Example SJMB030020_G1_gl_conserting_unpaired_smcls.txt
+
+            grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}"|sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*.txt | grep -iE "Del" >> sample_records/"'\$outputFile'" '
+
+
+        elif [ "${type}" == "Somatic SV" ] && ([ "${cytoLocus}" == "Fusion" ] || [ "${cytoLocus}" == "Missed Fusion" ]); then
 
             fusion=\$(echo ${gene}|tr "-" "_")
             echo "fusion is \$fusion"
 
-            #### this will look for the fusion in many places: cicero-itd-post, crest-post, is Somatic SV is in the name of the file
+            # This will look for the fusion in many places: cicero-itd-post, crest-post, is Somatic SV is in the name of the file
             grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}" | sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'\$fusion'" {}/*.txt >> sample_records/"'\$outputFile'" '
 
             if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
             
-                echo "could not find records with somatic SV in their name; will look into crest-post"
-                cat \$recFile | grep -w 'crest-post'| parallel ' grep -iwE "'\$fusion'" {}/*-event_fusion.txt  >> sample_records/"'\$outputFile'" '  
+                echo "could not find records with somatic SV in their name; will look into crest-post and cicero-post"
+                cat \$recFile | grep -wE 'crest-post|cicero-post'| parallel ' grep -iwE "'\$fusion'" {}/*-event_fusion.txt  >> sample_records/"'\$outputFile'" '  
+            fi
+
+        elif [ "${type}" == "Somatic SV" ] && ([ "${cytoLocus}" == "Position Effect" ] || [ "${cytoLocus}" == "Amplification / Disruption" ]); then
+
+            # Look for either gene
+            fusion=\$(echo ${gene}|tr "-" "|")
+            echo "position effect genes are \$fusion"
+
+            # This will look for the fusion in many places: cicero-itd-post, crest-post, is Somatic SV is in the name of the file
+            grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}" | sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -wE "'\$fusion'" {}/*.txt >> sample_records/"'\$outputFile'" '
+
+            if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
+            
+                echo "could not find records with somatic SV in their name; will look into crest-post and cicero-post"
+                cat \$recFile | grep -wE 'crest-post|cicero-post'| parallel ' grep -iwE "'\$fusion'" {}/*-event_fusion.txt  >> sample_records/"'\$outputFile'" '  
             fi
 
 
@@ -129,7 +165,7 @@ process get_cytoband_loci {
 
         elif [ "${type}" == "Somatic SNV" ]; then
 
-            grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}"| sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*tier1* | grep -iE "'${cytoLocus}'" >> sample_records/"'\$outputFile'" '
+            cat \$recFile | grep -iE \$(echo "${type}"| sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*_tier* | grep -iE "'${cytoLocus}'" >> sample_records/"'\$outputFile'" '
 
 
         elif [ "${type}" == "Somatic INDEL" ]; then
