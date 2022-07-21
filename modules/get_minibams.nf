@@ -673,6 +673,7 @@ process generateSubBams {
         cat \$1 | sed 1d| sort -k1,1V -k2,2n > bed_noheader_sorted.txt
         inputBam=\$(cat \$1|sed 1d|cut -f 5|sort|uniq)
         inputSam="\$(basename \$inputBam .bam)".sam
+        inputBam2="\$(basename \$inputBam .bam)"_orig.bam
         cat bed_noheader_sorted.txt| cut -f 1-3  > \$inputBed
 
         #keep going but save exit code
@@ -698,8 +699,11 @@ process generateSubBams {
            # samtools view -@ "$task.cpus"  -b -L \$inputBed  -o \$outputBam  \$inputSam
            # This will output the reads within the regions and their mates wherever they are
            # java.sh -XX:ParallelGCThreads=$task.cpus -jar \$(which samviewwithmate.jar) --bed \$inputBed  --samoutputformat BAM -o \$outputBam \$inputSam
+           # sort and index the sam file
+           samtools sort -@ "$task.cpus" \$inputSam -o \$inputBam2
+           samtools index \$inputBam2
            # Reads in the region and their mates wherever they are (note the -P option available since 1.15)
-           samtools view -@ "$task.cpus" -b -P -L \$inputBed  -o \$outputBam \$inputSam 
+           samtools view -@ "$task.cpus" -P -L \$inputBed  -o \$outputBam \$inputBam2
         fi
     }
 
