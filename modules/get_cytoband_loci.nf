@@ -65,7 +65,7 @@ process get_cytoband_loci {
 
         if [ "${type}" == "Somatic SV / CNA" ]; then
             
-            genes=\$(echo ${gene}|tr "\\/\\ " "|")
+            genes=\$(echo ${gene}|tr "\\/\\ " "|" | sed 's/>.*//g')
 
             # This covers deletions
             cat \$recFile | grep -w 'conserting_crest-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "DEL" >> sample_records/"'\$outputFile'" '  
@@ -90,13 +90,13 @@ process get_cytoband_loci {
         elif [ "${type}" == "Somatic INDEL/SV" ]; then
 
             # First look into classified results as it is a compilation of different results
-            grep -iE "Somatic" \$recFile | grep 'sv-somatic-classified' | parallel ' grep -w "'${gene}'" {}/*.txt| grep -iE "'${cytoLocus}'" >> sample_records/"'\$outputFile'" ' 
+            cat \$recFile | grep 'sv-somatic-classified' | parallel ' grep -w "'${gene}'" {}/*.txt| grep -iE "'${cytoLocus}'" >> sample_records/"'\$outputFile'" ' 
             if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
                 echo "could not find any in sv-somatic-classified will look into crest-post and cicero-itd-post"
                 # This seems to cover deletions
-                cat \$recFile | grep -wE 'crest-post|cicero-itd-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "DEL" >> sample_records/"'\$outputFile'" '
+                cat \$recFile | grep -wE 'crest-post|cicero-itd-post' |parallel ' grep -iwE "'${gene}'" {}/*-event_fusion.txt | grep -iE "DEL" >> sample_records/"'\$outputFile'" '
                 # This seems to cover duplications or insertions
-                cat \$recFile | grep -wE 'crest-post|cicero-itd-post' |parallel ' grep -iwE "'\$genes'" {}/*-event_fusion.txt | grep -iE "INS" >> sample_records/"'\$outputFile'" '
+                cat \$recFile | grep -wE 'crest-post|cicero-itd-post' |parallel ' grep -iwE "'${gene}'" {}/*-event_fusion.txt | grep -iE "INS" >> sample_records/"'\$outputFile'" '
                 
             fi
 
@@ -158,24 +158,36 @@ process get_cytoband_loci {
 
             if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
 
-                echo "could not find records with somatic SV in their name; will look into all text files"
-                cat \$recFile | grep -w 'crest-post'| parallel ' grep -iwE "'${gene}'" {}/*-event_fusion.txt | grep -iE "DEL"  >> sample_records/"'\$outputFile'" '  
+                echo "could not find records with somatic SV in their name; will look into crest-post and cicero-post"
+                cat \$recFile | grep -wE 'crest-post|cicero-post'| parallel ' grep -iwE "'${gene}'" {}/*-event_fusion.txt | grep -iE "DEL"  >> sample_records/"'\$outputFile'" '  
             fi
 
 
         elif [ "${type}" == "Somatic SNV" ]; then
+            genes=\$(echo ${gene} | tr "\\/\\ " "|" | sed 's/>.*//g')
+            cytoLocus=\$(echo "${cytoLocus}" | tr "\\>" "|") 
 
-            cat \$recFile | grep -iE \$(echo "${type}"| sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*_tier* | grep -iE "'${cytoLocus}'" >> sample_records/"'\$outputFile'" '
+            cat \$recFile | grep -iE \$(echo "${type}"| sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -iwE "'\$genes'" {}/*_tier* | grep -iE "'\$cytoLocus'" >> sample_records/"'\$outputFile'" '
+            if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
+                echo "could not find records in the snv-post results; will look into snv-paired results"
+                cat \$recFile | grep -wE 'snv-paired'| parallel ' grep -iwE "'\$genes'" {}/*.out | grep -iE "'\$cytoLocus'"  >> sample_records/"'\$outputFile'" '  
+            fi
 
 
         elif [ "${type}" == "Somatic INDEL" ]; then
-
-            grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}"| sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*_putative_exon_somatic_indel_mutation-multi_target.txt | grep -iE "'${cytoLocus}'" >> sample_records/"'\$outputFile'" '
+            genes=\$(echo ${gene} | tr "\\/\\ " "|" | sed 's/>.*//g')
+            cytoLocus=\$(echo "${cytoLocus}" | tr "\\>" "|") 
+            # First look under indel-post somatic results
+            cat \$recFile | grep -iE \$(echo "${type}"| sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -iwE "'\$genes'" {}/*_somatic_*.txt | grep -iE "'\$cytoLocus'" >> sample_records/"'\$outputFile'" '
+            if [[ \$(cat sample_records/"\$outputFile"|wc -l) -eq 0 ]]; then
+                echo "could not find records in the indel-post results; will look under putative exon results"
+                grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}"| sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -iwE "'\$genes'" {}/*_putative_exon_somatic_indel_mutation-multi_target.txt | grep -iE "'\$cytoLocus'" >> sample_records/"'\$outputFile'" '
+            fi
 
 
         else
 
-            grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}"|sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*.txt | grep -iE "'${cytoLocus}'" >> sample_records/"'\$outputFile'" '
+            grep -iE \$(echo "${type}"|cut -f 1 -d " ") \$recFile | grep -iE \$(echo "${type}"|sed "s/CNA/CNV/g"|cut -f 2 -d " ") | parallel ' grep -w "'${gene}'" {}/*.txt | grep -iE "'\$cytoLocus'" >> sample_records/"'\$outputFile'" '
 
 
         fi
@@ -223,7 +235,8 @@ process get_cytoband_loci {
                 if [ -s events_capture.info ]; then
                     eventsFileFound=true
                     echo "python ${workflow.projectDir}/bin/prepManifest.py -i events_capture.info -b list_of_bamPaths.info -o events_locii_fixed.tsv"
-                    python ${workflow.projectDir}/bin/prepManifest.py -i <(cat events_capture.info) -b list_of_bamPaths.info -o events_locii_fixed.tsv
+                    cat list_of_missing_bamPaths.info |parallel 'echo -e \$(basename \$(dirname {}))"\\t"\$(basename \$(dirname \$(dirname {})))"\\t"{}' > missing_bams_file
+                    python ${workflow.projectDir}/bin/prepManifest.py -i <(cat events_capture.info) -b <(cat list_of_bamPaths.info missing_bams_file|sed '/^\$/d') -o events_locii_fixed.tsv
                 else
                     echo "events_capture.info is not done yet or does not exist"
                     sleep 1

@@ -1,11 +1,22 @@
 /*=================== workflow to get minibams of localized abnormal events for specific target and sample type======================*/
+/* 
+   Inputs:
+          genome: from which to determine chr and tag results
+          locus_band_indel: wiggle room for indels loci
+          locus_band_indel_sv: wiggle room for SV indels loci
+          locus_band_sv: wiggle room for SV loci 
+          locus_band_del: wiggle room before and after deletions
+   Outputs:
+          varies by process
+*/
+
+params.outD = null
 params.genome = null
 params.locus_band_indel = null
 params.locus_band_indel_sv = null
 params.locus_band_sv = null
 params.locus_band_del = null
-params.random_seed = 900
-
+params.random_seed = null
 
 process get_clean_manifest {
     tag "generate a manifest for ground truth events"
@@ -35,7 +46,6 @@ import sys
 
 
 locus_band_indel = int("${params.locus_band_indel}")
-locus_band_indel_sv = int("${params.locus_band_indel_sv}")
 locus_band_sv = int("${params.locus_band_sv}")
 locus_band_del = int("${params.locus_band_del}")
 
@@ -91,19 +101,32 @@ def reformatRaw(rawD):
     SVs = rawD[rawD[4].str.contains('SV') | rawD[4].str.contains('CNA')].iloc[:,clskeep]
 
     #format SVs to bedpe format and nonSVs to bed format
+    str_chr = [str(k) for k in range(1,23)] + ['X', 'Y']
     def classify_svs(row):
-        try:
-            x=int(row[7])
-            return 't3'
-        except ValueError:
-            try:
-                x=int(row[8])
-                return 't1'
-            except ValueError:
-                if row[8] == 'X' or row[8] == 'Y':
-                    return 't1'
-                else:
-                    return 't2'
+        if row[4] == 'Somatic SV / CNA':
+            #return [8, 9, 10, 12, 13, 14, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]
+            return 't1' 
+        if row[4] == 'Somatic SV':
+            # This type has NaN pair and score
+            if row[7].split('chr')[-1] in str_chr: 
+                #return [7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 1, 2, 3, 4]
+                return 't0'
+            elif row[8].split('chr')[-1] in str_chr: 
+                #return [8, 9, 10, 12, 13, 14, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]
+                return 't1' 
+            else:
+                #return [9, 10, 11, 12, 13, 14, 8, 15, 7, 17, 18, 19, 20, 1, 2, 3, 4]
+                return 't2' 
+        if row[4] == 'Somatic INDEL/SV':
+            #return [8, 9, 10, 12, 13, 14, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4] 
+            return 't1' 
+        if row[4] in ['Somatic CNA', 'Germline CNA']: 
+            if row[7].split('chr')[-1] in str_chr:
+                #return [7, 8, 11, 7, 9, 11, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]
+                return 't3' 
+            else:
+                #return [8, 9, 10, 12, 13, 14, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]
+                return 't1' 
 
     if SVs.shape[0] > 0:
         SVs.loc[:,'type'] = SVs.apply(classify_svs, axis=1)
@@ -111,6 +134,9 @@ def reformatRaw(rawD):
         # We need to have something with at least the columns:
         cols=['ChrA','PosA','OrtA','ChrB','PosB','OrtB','Type','score']
     
+        bedpe_like0 = SVs.loc[SVs['type']=='t0', [7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 1, 2, 3, 4]]
+        bedpe_like0.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
+                          'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']
         bedpe_like1 = SVs.loc[SVs['type']=='t1', [8, 9, 10, 12, 13, 14, 16, 11, 7, 17, 18, 19, 20, 1, 2, 3, 4]]
         bedpe_like1.columns = ['ChrA_', 'PosA', 'OrtA', 'ChrB_', 'PosB', 'OrtB', 'Type', 'score', 'pair', 'target', \
                           'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']
@@ -124,9 +150,13 @@ def reformatRaw(rawD):
                           'sample', 'bam', 'sampleType', 'sname', 'gene', 'cytolocus', 'event']
     
     
-        bedpe_like = bedpe_like1.append(bedpe_like2)
+        bedpe_like = bedpe_like0.append(bedpe_like1)
+        bedpe_like = bedpe_like.append(bedpe_like1)
+        bedpe_like = bedpe_like.append(bedpe_like2)
         bedpe_like = bedpe_like.append(bedpe_like3)
     
+        # Drop those with Null type as they are usually duplicates
+        # This also means do not supply events with null Type
         test_numeric = pd.to_numeric(bedpe_like['Type'], errors='coerce')
         bedpe_like = bedpe_like.loc[test_numeric.isnull()]
         bedpe_like.loc[:,'PosA'] = bedpe_like['PosA'].astype(float).astype(int)
@@ -137,7 +167,7 @@ def reformatRaw(rawD):
 
     # Next are the nonSVs
     def classify_nonSvs(row):
-        if len(row[10].split('chr')) > 1:
+        if row[10].startswith('chr'):
             return 't1'
         else:
             return 't2'
@@ -410,7 +440,7 @@ for g, dfg in gpbyAnlyTypeSampleType:
    number_of_uniq_events.append(dfg.drop_duplicates().shape[0])
    analysisType = g[0]
    sampleType = g[1]
-   print('saving a file ','manifest_'+analysisType+'_'+sampleType+'.tsv',' this is really for checking')
+   print('saving a file ','manifest_'+analysisType+'_'+sampleType+'.tsv',' this is really for checking', file=sys.stderr)
    dfg = dfg.drop_duplicates().convert_dtypes()
    dfg.to_csv('manifest_'+analysisType+'_'+sampleType+'.tsv',sep='\\t', index=False)
 
@@ -431,7 +461,7 @@ else:
     df_valid.loc['VALID1','NOTES'] = 'The manifest failed the first validation: the events are not the same across target/sample-type combinations'
 
 
-#Now we do the coverage validation:
+# Now we do the coverage validation:
 
 hg19_chr=list(map(str,list(range(1,23)))) + ['MT','Y','X']
 hg38_chr = ['chr'+i for i in hg19_chr]
@@ -451,7 +481,7 @@ elif '${params.genome}' == 'hg38':
             missing_chr.append(chrom)
 
 else:
-    print('unknown genome')
+    print('unknown genome', file=sys.stderr)
     sys.exit(1)
     
 
@@ -468,15 +498,17 @@ else:
 df_valid.to_csv('manifest_validation.txt', sep='\\t',index=False)
 
 if df_valid['STATUS'].isin(['FAIL']).sum() > 0 :
-    print('Manifest failed validation, see below for more information')
-    print(df_valid)
-    sys.exit(1)
-
-print('Done')
-
-
+    print('Manifest failed validation, see below for more information', file=sys.stderr)
+    print(df_valid, file=sys.stderr)
+    with open('exit_status.txt', 'w') as f:
+        f.write('1')
+else:
+    with open('exit_status.txt', 'w') as f:
+        f.write('0')
 
 "
+exit_status=\$(echo exit_status.txt)
+echo \$exit_status >&2
 
 """
 }
@@ -594,7 +626,9 @@ for bamP, dfg in gpbyBams:
     bam_bed.loc[:,'bamPath'] = bamFilePath
     bam_bed = bam_bed.drop_duplicates().dropna()
     bam_bed.columns = ['chr','pos1','pos2','sample','bamPath']
+    # Convert it to 0-based as it should be for a bed file expected by samtools
     bam_bed = bam_bed.convert_dtypes()
+    bam_bed.loc[:,'pos1'] = bam_bed['pos1'].values - 1
     bam_bed.to_csv('bam_beds/'+sampleName+'_wheader.bed', sep='\\t',index=False) 
     
 
@@ -629,22 +663,17 @@ process generateSubBams {
     
     """
 
-    module load samtools/1.12
-    module load sjcb/openjdk/17.0.0_35
-    # This is old and compiled to run on 1 thread
-    # very slow
-    #module load samviewwithmate
-  
-    # TODO build a docker image
-    export PATH="/research/rgs01/project_space/zhanggrp/MethodDevelopment/common/ralsalla/minibam/optimized_branch/test_getting_mates/jvarkit/dist/:$PATH"
+    module load samtools/1.15.1
     
     function getSmallBam() {
 
-        outputBam=\$(echo \$(basename \$1 _wheader.bed).bam)
-        inputBed=\$(echo \$(basename \$1 _wheader.bed).bed)
+        outputBam="\$(basename \$1 _wheader.bed)".bam
+        inputBed="\$(basename \$outputBam .bam)".bed
+        # Sort as it seems to help speed up samtools view
+        cat \$1 | sed 1d| sort -k1,1V -k2,2n > bed_noheader_sorted.txt
         inputBam=\$(cat \$1|sed 1d|cut -f 5|sort|uniq)
-        inputSam=\$(echo "\$(basename \$inputBam .bam)".sam)
-        cat \$1 | sed 1d | cut -f 1-3 > \$inputBed
+        inputSam="\$(basename \$inputBam .bam)".sam
+        cat bed_noheader_sorted.txt| cut -f 1-3  > \$inputBed
 
         #keep going but save exit code
         EXIT_CODE=0
@@ -657,8 +686,9 @@ process generateSubBams {
            # This would not extract mates if they are mapped outside the region
            # and will end up with singleton reads (mapped reads with no mapped mates)
            # samtools view -@ "$task.cpus" -L \$inputBed  -o \$outputBam \$inputBam
-           #java.sh -XX:ActiveProcessorCount="$task.cpus" -jar \$(which samviewwithmate.jar) --bed \$inputBed --samoutputformat BAM -o \$outputBam \$inputBam
-           java.sh -XX:ParallelGCThreads=$task.cpus -jar \$(which samviewwithmate.jar) --bed \$inputBed --samoutputformat BAM -o \$outputBam \$inputBam
+           #java.sh -XX:ParallelGCThreads=$task.cpus -jar \$(which samviewwithmate.jar) --bed \$inputBed --samoutputformat BAM -o \$outputBam \$inputBam
+           # Reads in the region and their mates wherever they are (note the -P option available since 1.15)
+           samtools view -@ "$task.cpus" -P -L \$inputBed  -o \$outputBam \$inputBam 
  
         else
            echo "processing \$inputSam to \$outputBam"
@@ -667,7 +697,9 @@ process generateSubBams {
            # and will end up with singleton reads (mapped reads with no mapped mates)
            # samtools view -@ "$task.cpus"  -b -L \$inputBed  -o \$outputBam  \$inputSam
            # This will output the reads within the regions and their mates wherever they are
-           java.sh -XX:ParallelGCThreads=$task.cpus -jar \$(which samviewwithmate.jar) --bed \$inputBed  --samoutputformat BAM -o \$outputBam \$inputSam
+           # java.sh -XX:ParallelGCThreads=$task.cpus -jar \$(which samviewwithmate.jar) --bed \$inputBed  --samoutputformat BAM -o \$outputBam \$inputSam
+           # Reads in the region and their mates wherever they are (note the -P option available since 1.15)
+           samtools view -@ "$task.cpus" -b -P -L \$inputBed  -o \$outputBam \$inputSam 
         fi
     }
 
@@ -700,7 +732,7 @@ process mergeToMinibams {
     """
     #!/usr/bin/bash
     module load python/3.7.0
-    module load samtools/1.12
+    module load samtools/1.15.1
 
     mkdir -p ${analysisType}_${params.genome}
    
@@ -719,9 +751,17 @@ process mergeToMinibams {
     echo "merging \$(ls *.bam|wc -l) bams" >&2
   
     find *.bam > bamlistfile 
+    # Sort the splits by coordinates for merging
+    for bam in \$(cat bamlistfile|xargs)
+    do
+      samtools sort -@ "$task.cpus" \$bam -o \${bam}.sorted
+      if [ "\$?" == "0" ]; then
+          mv \${bam}.sorted \$bam
+      fi   
+    done
 
-    echo "merge read groups bams into a minibam" >&2
-    samtools merge -@ "$task.cpus" -r -c -p -f --output-fmt BAM -b bamlistfile  ${analysisType}_${sampleType}_${params.genome}.notsorted.rawH.bam
+    echo "merge read groups sorted bams into a minibam" >&2
+    samtools merge -@ "$task.cpus" -r -c -p -f --no-PG --output-fmt BAM -b bamlistfile  ${analysisType}_${sampleType}_${params.genome}.notsorted.rawH.bam
 
     echo "changing SM in the header to be unique single for a single minibam file" >&2
 
