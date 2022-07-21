@@ -644,7 +644,8 @@ print('Done')
 process generateSubBams {
     tag "small bams from $analysisType $sampleType"
     //container "stjudecloud/samtools:branch-chipseq-1.0.2"
-    label 'multithread'
+    memory 80.GB
+    cpus 8
     //publishDir "${params.outD}/", mode: 'copy'
     
     // do not run if results exist
