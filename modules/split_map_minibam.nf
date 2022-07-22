@@ -1,7 +1,8 @@
 
 process splitMinibamByRGs {
     tag "split minibams by RGs"
-    label 'io_mem'
+    cpus 1
+    memory 8.GB
 
     input:
     path(minibam)

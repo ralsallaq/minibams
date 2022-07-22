@@ -4,7 +4,8 @@ params.genome = null
 params.lookupDircs = null 
 
 process get_cytoband_loci {
-    label 'io_limited'
+    cpus 8
+    memory 5.GB
     //publishDir "${params.outD}", mode: 'copy'
 
     input:

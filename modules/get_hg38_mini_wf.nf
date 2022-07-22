@@ -102,7 +102,8 @@ workflow get_hg38_mini_wf {
 
 process liftoverSVs {
     tag 'liftover segments'
-    label 'io_mem'
+    cpus 1
+    memory 8.GB
     publishDir "${params.outD}/", mode: 'copy'
  
     input:
@@ -253,7 +254,8 @@ echo "Done"
 
 process liftoverBED {
     tag 'liftover loci'
-    label 'io_mem'
+    cpus 1
+    memory 8.GB
     publishDir "${params.outD}/", mode: 'copy'
  
     input:
