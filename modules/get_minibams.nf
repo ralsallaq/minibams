@@ -664,7 +664,7 @@ process generateSubBams {
     val(sampleType)
 
     output:
-    //path ("bamsToCombine/*.bam"), emit:minibamToCombine_ch
+    // Single bam is expected per sample
     path ("*.bam"), emit:minibamToCombine_ch
     
     """
@@ -672,14 +672,14 @@ process generateSubBams {
     module load samtools/1.15.1
     
     function getSmallBam() {
-
+        mkdir -p orig_bams_failed_qcheck
         outputBam="\$(basename \$1 _wheader.bed)".bam
         inputBed="\$(basename \$outputBam .bam)".bed
         # Sort as it seems to help speed up samtools view
         cat \$1 | sed 1d| sort -k1,1V -k2,2n > bed_noheader_sorted.txt
         inputBam=\$(cat \$1|sed 1d|cut -f 5|sort|uniq)
-        inputSam="\$(basename \$inputBam .bam)".sam
-        inputBam2="\$(basename \$inputBam .bam)"_orig.bam
+        inputSam=orig_bams_failed_qcheck/"\$(basename \$inputBam .bam)".sam
+        inputBam2=orig_bams_failed_qcheck/"\$(basename \$inputBam .bam)"_orig.bam
         cat bed_noheader_sorted.txt| cut -f 1-3  > \$inputBed
 
         #keep going but save exit code
@@ -717,6 +717,8 @@ process generateSubBams {
         
         
     getSmallBam "${bedFile}"
+    nBams=\$(ls *.bam|wc -l)
+    if [ "\$nBams" != 1 ]; then echo "Expected only one subBam for the sample ... exiting!"; exit 1; fi
 
 
     """
