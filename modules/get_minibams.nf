@@ -20,8 +20,7 @@ params.random_seed = null
 
 process get_clean_manifest {
     tag "generate a manifest for ground truth events"
-    cpus 1
-    memory 5.GB
+    label 'io_limited'
     publishDir "${params.outD}/", mode: 'copy'
 
     input:
@@ -409,8 +408,7 @@ echo "Done"
 process validate_manifest {
 
     tag "validates the manifest"
-    cpus 1
-    memory 5.GB
+    label 'io_limited'
     publishDir "${params.outD}/", mode: 'copy'
 
     input:
@@ -520,8 +518,7 @@ echo \$exit_status >&2
 
 process get_GT_manifest {
     tag "generate a manifest for ground truth events for each anlysis/sample types"
-    cpus 1
-    memory 5.GB
+    label 'io_limited'
     publishDir "${params.outD}/", mode: 'copy'
 
     input:
@@ -576,8 +573,7 @@ echo "Done"
 process generateBEDFiles {
 
     tag "generate bed files"
-    cpus 1
-    memory 5.GB
+    label 'io_limited'
     
     input:
     path(manifestFile)
@@ -648,8 +644,7 @@ print('Done')
 process generateSubBams {
     tag "small bams from $analysisType $sampleType"
     //container "stjudecloud/samtools:branch-chipseq-1.0.2"
-    cpus 8
-    memory 80.GB
+    label 'multithread'
 
     //publishDir "${params.outD}/", mode: 'copy'
     
@@ -734,8 +729,7 @@ process generateSubBams {
 process mergeToMinibams {
     tag "merge to minibams"
     //container "stjudecloud/samtools:branch-chipseq-1.0.2"
-    cpus 8
-    memory 80.GB
+    label 'multithread'
     publishDir "${params.outD}", mode: 'copy'
 
     input:

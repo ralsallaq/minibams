@@ -8,8 +8,7 @@ params.tartanIndex_projDir = null
 
 process multiLoci2Bed {
     tag "from multiloci (e.g. crest) to bed"
-    cpus 1
-    memory 5.GB
+    label 'io_limited'
     publishDir "${params.outD}/tmp/", mode: 'copy'
 
     input:
@@ -103,8 +102,7 @@ print('Done')
 
 process generateBedFilesFromExBed {
     tag "generate bed files w/ headers"
-    cpus 1
-    memory 5.GB
+    label 'io_limited'
     publishDir "${params.outD}/tmp/", mode: 'copy'
 
     input:

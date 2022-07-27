@@ -140,7 +140,7 @@ workflow {
   
             // Get a manifest 
             inputFile_ch = channel.fromPath(params.abnormal_eventsFile).splitCsv(header: true, sep: "\t", strip: true)
-            inputFile_ch.map{ event -> [event.sample, event.gene, event.cytoLocus, event.type] }.set {abnormal_events_ch}
+            inputFile_ch.map{ event -> [event.sample, event.gene, event.abnormality, event.type] }.set {abnormal_events_ch}
     
             //abnormal_events_ch.view()
     

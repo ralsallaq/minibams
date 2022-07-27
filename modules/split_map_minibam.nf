@@ -1,8 +1,7 @@
 
 process splitMinibamByRGs {
     tag "split minibams by RGs"
-    cpus 1
-    memory 8.GB
+    label 'multithread'
 
     input:
     path(minibam)
@@ -48,7 +47,7 @@ process splitMinibamByRGs {
 
 process bam2fastq {
     tag "convert coord sorted bam to fastqs"
-    label 'io_mem'
+    label 'multithread'
 
     input:
     path(bamFile)
@@ -110,7 +109,7 @@ process bam2fastq {
 
 process bwaMEM {
     tag "map fastqs to human genome"
-    label 'io_mem'
+    label 'multithread'
 
     input:
     tuple val(rg), path(RGtxt), path(fastqs)
