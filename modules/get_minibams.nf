@@ -682,9 +682,9 @@ process generateSubBams {
         inputBam2=orig_bams_failed_qcheck/"\$(basename \$inputBam .bam)"_orig.bam
         cat bed_noheader_sorted.txt| cut -f 1-3  > \$inputBed
 
-        # First gzip and index the bed file
-        bgzip \$inputBed # This will add .gz suffix
-        tabix -s 1 -b 2 -e 3 \${inputBed}.gz # This will add .tbi suffix
+        # First gzip and index the position-sorted bed file
+        bgzip -c \$inputBed # This will add .gz suffix
+        tabix --zero-based --sequence 1 --begin 2 --end 3 \${inputBed}.gz # This will add .tbi suffix
 
         # Keep going but save exit code
         EXIT_CODE=0
@@ -700,7 +700,7 @@ process generateSubBams {
            #java.sh -XX:ParallelGCThreads=$task.cpus -jar \$(which samviewwithmate.jar) --bed \$inputBed --samoutputformat BAM -o \$outputBam \$inputBam
            # Reads in the region and their mates wherever they are (note the -P option available since 1.15)
 
-           samtools view -@ "$task.cpus" -P -L \$inputBed  -o \$outputBam \$inputBam
+           samtools view -@ "$task.cpus" -P -L <(gunzip < \${inputBed}.gz)  -o \$outputBam \$inputBam
  
         else
            echo "processing \$inputSam to \$outputBam"
@@ -714,7 +714,7 @@ process generateSubBams {
            samtools sort -@ "$task.cpus" \$inputSam -o \$inputBam2
            samtools index \$inputBam2
            # Reads in the region and their mates wherever they are (note the -P option available since 1.15)
-           samtools view -@ "$task.cpus" -P -L \$inputBed  -o \$outputBam \$inputBam2
+           samtools view -@ "$task.cpus" -P -L <(gunzip < \${inputBed}.gz)  -o \$outputBam \$inputBam2
         fi
     }
 
