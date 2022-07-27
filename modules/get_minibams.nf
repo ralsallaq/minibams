@@ -683,7 +683,7 @@ process generateSubBams {
         cat bed_noheader_sorted.txt| cut -f 1-3  > \$inputBed
 
         # First gzip and index the position-sorted bed file
-        bgzip -c \$inputBed # This will add .gz suffix
+        bgzip \$inputBed # This will add .gz suffix
         tabix --zero-based --sequence 1 --begin 2 --end 3 \${inputBed}.gz # This will add .tbi suffix
 
         # Keep going but save exit code
