@@ -40,6 +40,14 @@ params.target_genome = 'hg38'
 params.events_bed_file = "analysis_2022_04_14/bed_events_wheader.bed"
 params.events_bedpe_file = "analysis_2022_04_14/bedpe_events_wheader.bedpe"
 
+def helpMessage() {
+    log.info"""
+    Usage:
+
+    nextflow run ralsallaq/minibams <ARGS>
+    """.stripIndent()
+}
+
 if (params.use_manifest_file == null & params.abnormal_eventsFile == null){
         log.error("if --use_manifest_file is null --abnormal_eventsFile should point to a file")
         exit 1
