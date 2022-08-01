@@ -68,7 +68,7 @@ would be looking for the samples and events in the events_input_file.tsv.
       --outD /path/to/output/dir \
       --abnormal_eventsFile events_input_file.tsv \
       --lookupDircs /path/to/tartan/index/project/subproject/dir
-      --genome hg19
+      --genome hg19 \
       -w /path/to/work/dir \
       -c nextflow.config \
       -profile lsfCluster \
@@ -122,8 +122,8 @@ cat events_input_file.tsv | awk '{NR !=1 ?$1="SJOther9XXXXX":$1=$1; print;}' > e
       --random_seed 902 \
       --outD /path/to/recover/output/dir \
       --abnormal_eventsFile events_input_file_recover.tsv \
-      --lookupDircs /path/to/tartan/index/project/subproject/dir/for/frankenbam/
-      --genome hg19
+      --lookupDircs /path/to/tartan/index/project/subproject/dir/for/frankenbam/ \
+      --genome hg19 \
       -w /path/to/work/dir \
       -c nextflow.config \
       -profile lsfCluster \
