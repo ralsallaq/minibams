@@ -109,7 +109,7 @@ regions, then change the random seed to a different integer than the one used to
 exisiting minibams.
 
 
-### Recover event from a post-analysis run index directory
+### Recover events from a post-analysis run index directory
 Now that you have run the frankenbams through pipeline(s) and you want to recover the events, how do you do that? 
 Here, we are going to use the recover mode. First edit the events_input_file.tsv to replace sample names by the frankenbam name:
 ```
