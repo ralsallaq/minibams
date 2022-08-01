@@ -64,10 +64,10 @@ would be looking for the samples and events in the events_input_file.tsv.
 
 ```
 ./nextflow run ralsallaq/minibams main.nf \
-      --random_seed=902 \
+      --random_seed 902 \
       --outD /path/to/output/dir \
       --abnormal_eventsFile events_input_file.tsv \
-      --lookupDircs=/path/to/tartan/index/project/subproject/dir
+      --lookupDircs /path/to/tartan/index/project/subproject/dir
       --genome hg19
       -w /path/to/work/dir \
       -c nextflow.config \
@@ -108,3 +108,28 @@ adding regions to the exisiting bams. In case you need to change the subject id 
 regions, then change the random seed to a different integer than the one used to generate the
 exisiting minibams.
 
+
+### Recover event from a post-analysis run index directory
+Now that you have run the frankenbams through pipeline(s) and you want to recover the events, how do you do that? 
+Here, we are going to use the recover mode. First edit the events_input_file.tsv to replace sample names by the frankenbam name:
+```
+cat events_input_file.tsv | awk '{NR !=1 ?$1="SJOther9XXXXX":$1=$1; print;}' > events_input_file_recover.tsv
+
+# Then run:
+
+./nextflow run ralsallaq/minibams main.nf \
+      --recover \
+      --random_seed 902 \
+      --outD /path/to/recover/output/dir \
+      --abnormal_eventsFile events_input_file_recover.tsv \
+      --lookupDircs /path/to/tartan/index/project/subproject/dir/for/frankenbam/
+      --genome hg19
+      -w /path/to/work/dir \
+      -c nextflow.config \
+      -profile lsfCluster \
+      -resume"
+```
+
+The output in the recovery mode will encompass bed-like and bedpe-like files that can be used to compare with 
+the corresponding files produced when generating the frankenbams
+ 
