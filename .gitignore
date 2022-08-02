@@ -4,7 +4,6 @@ nextflow
 *_s?*
 analysis
 work
-locii_input_file.tsv
 run_pipeline.log
 run_pipeline.sh
 .nextflow
@@ -17,7 +16,6 @@ coverage/
 coverage-post/
 steps.info
 analysis_recover/
-bin/prepManifest.py
 cnv-paired/
 coverage-paired/
 crest-post/

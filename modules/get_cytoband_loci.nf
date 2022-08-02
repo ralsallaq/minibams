@@ -236,7 +236,7 @@ process get_cytoband_loci {
                     eventsFileFound=true
                     echo "python ${workflow.projectDir}/bin/prepManifest.py -i events_capture.info -b list_of_bamPaths.info -o events_locii_fixed.tsv"
                     cat list_of_missing_bamPaths.info |parallel 'echo -e \$(basename \$(dirname {}))"\\t"\$(basename \$(dirname \$(dirname {})))"\\t"{}' > missing_bams_file
-                    python ${workflow.projectDir}/bin/prepManifest.py -i <(cat events_capture.info) -b <(cat list_of_bamPaths.info missing_bams_file|sed '/^\$/d') -o events_locii_fixed.tsv
+                    prepManifest.py -i <(cat events_capture.info) -b <(cat list_of_bamPaths.info missing_bams_file|sed '/^\$/d') -o events_locii_fixed.tsv
                 else
                     echo "events_capture.info is not done yet or does not exist"
                     sleep 1

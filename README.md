@@ -47,14 +47,16 @@ If you have an event file that looks like this
 ```
 cat events_input_file.tsv
 sample          gene           abnormality       type
-SJALCL030011    NPM1-ALK       Fusion       Somatic SV
-SJAML001417     GATA2          R337fs       Somatic INDEL
-SJAML001417     SETD2          S1572fs      Somatic INDEL
-SJAML001417     WT1            R380fs       Somatic INDEL
-SJAML001417     FLT3           ITD          Somatic INDEL/SV
-SJAML001417     BCL11A-GRIP2   Fusion       Somatic SV
-SJAML001417     NPM1-CCDC88A   Fusion       Somatic SV
-
+SJDOWN013       ETV6    I48fs   Somatic INDEL
+SJBALL204       KDM6A   Deletion or Disruption  Somatic SV / CNA
+SJMB030020      TP53    Deletion, Intragenic    Germline CNA
+SJDOWN013       EBF1    Deletion or Disruption  Somatic SV / CNA
+SJE2A007        PAX5    Deletion or Disruption  Somatic SV / CNA
+SJAML030023     BCOR    G1168R  Germline SNV
+SJE2A007        TCF3-PBX1       Fusion  Somatic SV
+SJBALL237       KRAS    I24N    Somatic SNV
+SJDOWN013       CD200/BTLA      Deletion or Disruption  Somatic SV / CNA
+SJBALL101       USP7    Deletion or Disruption  Somatic SV / CNA
 ```
 Then you can build five frankenbams using the following command which executes
 on lsf. Change the random seed to change the integer part in the subject id (e.g. SJ992966).
