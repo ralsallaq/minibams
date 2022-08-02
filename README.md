@@ -45,18 +45,18 @@ profiles{
 ### Get frankenbams from events file
 If you have an event file that looks like this
 ```
-cat events_input_file.tsv
-sample          gene           abnormality       type
-SJDOWN013       ETV6    I48fs   Somatic INDEL
-SJBALL204       KDM6A   Deletion or Disruption  Somatic SV / CNA
-SJMB030020      TP53    Deletion, Intragenic    Germline CNA
-SJDOWN013       EBF1    Deletion or Disruption  Somatic SV / CNA
-SJE2A007        PAX5    Deletion or Disruption  Somatic SV / CNA
-SJAML030023     BCOR    G1168R  Germline SNV
-SJE2A007        TCF3-PBX1       Fusion  Somatic SV
-SJBALL237       KRAS    I24N    Somatic SNV
-SJDOWN013       CD200/BTLA      Deletion or Disruption  Somatic SV / CNA
-SJBALL101       USP7    Deletion or Disruption  Somatic SV / CNA
+#cat events_input_file_small.tsv
+sample  gene    abnormality     type
+SJMLL002        NOTCH1  ITD     Somatic INDEL/SV
+SJNBL030003     11q     Deletion, Arm-level     Somatic CNA
+SJETV092        KRAS    T58I    Somatic SNV
+SJMB030020      17p     Deletion, Arm-level     Somatic CNA
+SJOS001 TP53    Deletion or Disruption  Somatic SV / CNA
+SJNBL030014     11q     Deletion, Arm-level     Somatic CNA
+SJDOWN013       SETD2   L1525R  Somatic SNV
+SJMLL001        ETV6    Deletion or Disruption  Somatic SV / CNA
+SJMB002 SMARCA4 R966W   Somatic SNV
+
 ```
 Then you can build five frankenbams using the following command which executes
 on lsf. Change the random seed to change the integer part in the subject id (e.g. SJ992966).
@@ -68,13 +68,14 @@ would be looking for the samples and events in the events_input_file.tsv.
 ./nextflow run ralsallaq/minibams main.nf \
       --random_seed 902 \
       --outD /path/to/output/dir \
-      --abnormal_eventsFile events_input_file.tsv \
+      --abnormal_eventsFile events_input_file_small.tsv \
       --lookupDircs /path/to/tartan/index/project/subproject/dir
       --genome hg19 \
       -w /path/to/work/dir \
       -c nextflow.config \
       -profile lsfCluster \
-      -resume"
+      -resume
+      -latest
 
 ```
 
@@ -104,6 +105,7 @@ Then you can run the minibam workflow like so
                -profile lsfCluster \
                -w /path/to/work/dir \
                -resume
+               -latest
 ```
 Note here that I used the random seed 902 as I do not want to change the subject id after
 adding regions to the exisiting bams. In case you need to change the subject id after adding
@@ -115,7 +117,7 @@ exisiting minibams.
 Now that you have run the frankenbams through pipeline(s) and you want to recover the events, how do you do that? 
 Here, we are going to use the recover mode. First edit the events_input_file.tsv to replace sample names by the frankenbam name:
 ```
-cat events_input_file.tsv | awk '{NR !=1 ?$1="SJOther9XXXXX":$1=$1; print;}' > events_input_file_recover.tsv
+cat events_input_file_small.tsv | awk '{NR !=1 ?$1="SJOther9XXXXX":$1=$1; print;}' > events_input_file_small_recover.tsv
 
 # Then run:
 
@@ -123,13 +125,14 @@ cat events_input_file.tsv | awk '{NR !=1 ?$1="SJOther9XXXXX":$1=$1; print;}' > e
       --recover \
       --random_seed 902 \
       --outD /path/to/recover/output/dir \
-      --abnormal_eventsFile events_input_file_recover.tsv \
+      --abnormal_eventsFile events_input_file_small_recover.tsv \
       --lookupDircs /path/to/tartan/index/project/subproject/dir/for/frankenbam/ \
       --genome hg19 \
       -w /path/to/work/dir \
       -c nextflow.config \
       -profile lsfCluster \
-      -resume"
+      -resume
+      -latest
 ```
 
 The output in the recovery mode will encompass bed-like and bedpe-like files that can be used to compare with 

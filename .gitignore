@@ -1,7 +1,6 @@
 .nextflow.log*
 myconfig
 nextflow
-*_s?*
 analysis
 work
 run_pipeline.log

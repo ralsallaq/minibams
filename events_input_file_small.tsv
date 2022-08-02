@@ -1,0 +1,10 @@
+sample	gene	abnormality	type
+SJMLL002	NOTCH1	ITD	Somatic INDEL/SV
+SJNBL030003	11q	Deletion, Arm-level	Somatic CNA
+SJETV092	KRAS	T58I	Somatic SNV
+SJMB030020	17p	Deletion, Arm-level	Somatic CNA
+SJOS001	TP53	Deletion or Disruption	Somatic SV / CNA
+SJNBL030014	11q	Deletion, Arm-level	Somatic CNA
+SJDOWN013	SETD2	L1525R	Somatic SNV
+SJMLL001	ETV6	Deletion or Disruption	Somatic SV / CNA
+SJMB002	SMARCA4	R966W	Somatic SNV
