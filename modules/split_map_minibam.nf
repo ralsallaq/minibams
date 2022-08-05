@@ -13,7 +13,7 @@ process splitMinibamByRGs {
     
     """
     #!/usr/bin/bash 
-
+    module load samtools/1.15.1
     which samtools
     if [ \$? != 0 ]
     then
